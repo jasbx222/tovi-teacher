@@ -1,0 +1,39 @@
+{
+  "name": "tovi-teacher",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host --port 4182",
+    "build": "tsc -b --pretty false && vite build",
+    "preview": "vite preview --host --port 4182"
+  },
+  "dependencies": {
+    "@emotion/cache": "^11.14.0",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@fontsource/alexandria": "^5.2.8",
+    "@fontsource/ibm-plex-sans-arabic": "^5.3.0",
+    "@fontsource/tajawal": "^5.2.7",
+    "@livekit/components-react": "^2.9.15",
+    "@livekit/components-styles": "^1.1.6",
+    "@mui/icons-material": "^7.3.4",
+    "@mui/material": "^7.3.4",
+    "framer-motion": "^14.13.0",
+    "livekit-client": "^2.15.8",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router": "^7.9.4",
+    "stylis": "^4.3.6",
+    "stylis-plugin-rtl": "^2.1.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.14",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@types/stylis": "^4.2.7",
+    "@vitejs/plugin-react": "^5.0.4",
+    "tailwindcss": "^4.1.14",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.10"
+  }
+}
