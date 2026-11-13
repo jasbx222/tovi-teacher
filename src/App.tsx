@@ -8,6 +8,7 @@ import { Resource } from "../shared/src/resource"
 import { SessionSummary } from "../shared/src/summary"
 import { SessionLine, sessionPhase, type SessionRow } from "../shared/src/sessions"
 import { PlanetHero } from "../shared/src/vivid"
+import { StatGrid, type Stat } from "../shared/src/stats"
 import { LoginCard, Shell, type NavItem } from "../shared/src/shell"
 import { Area, Callout, CourseCards, Field, Mast, MetricBand, PermissionPicker, SelectField, StatusText } from "../shared/src/ui"
 
@@ -92,12 +93,7 @@ function Home() {
       <PlanetHero kicker={lang === "ar" ? "استوديو المعلم" : "Teacher studio"} title={lang === "ar" ? "رصيدك وطلاب هذا الشهر" : "Your balance and this month's students"} lede={lang === "ar" ? "هذه الأرقام من حسابك على الخادم." : "These numbers come from your account on the server."}>
         <NextLive rows={sessions} />
       </PlanetHero>
-      <MetricBand items={[
-        { label: lang === "ar" ? "رصيد الأكواد" : "Code balance", value: data.codeBalance, lead: true },
-        { label: lang === "ar" ? "طلاب هذا الشهر" : "Students this month", value: data.monthlyStudents },
-        { label: lang === "ar" ? "ساعات الحصة المتبقية" : "Remaining hours", value: data.hourHours },
-        { label: lang === "ar" ? "نهاية الاشتراك" : "Subscription end", value: data.subscriptionEndsAt ? new Date(data.subscriptionEndsAt).toLocaleDateString(lang === "ar" ? "ar-IQ" : "en") : "—" },
-      ]} />
+      <StatGrid items={teacherStats(lang === "ar", data, courses.length, sessions)} />
       {courses.length > 0 ? (
         <section className="stack">
           <Mast title={lang === "ar" ? "الدورات" : "Courses"} />
@@ -106,6 +102,20 @@ function Home() {
       ) : null}
     </div>
   )
+}
+
+function teacherStats(ar: boolean, data: { codeBalance: number; monthlyStudents: number; hourHours: number; subscriptionEndsAt?: string | null }, courses: number, sessions: SessionRow[]): Stat[] {
+  const open = sessions.filter((row) => ["live", "lobby", "upcoming"].includes(sessionPhase(row))).sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+  const live = open.some((row) => sessionPhase(row) === "live")
+  const next = open[0]
+  const date = (value: string) => new Date(value).toLocaleDateString(ar ? "ar-IQ" : "en-GB", { day: "numeric", month: "short" })
+  const time = (value: string) => new Date(value).toLocaleString(ar ? "ar-IQ" : "en-GB", { weekday: "short", hour: "numeric", minute: "2-digit" })
+  return [
+    { label: ar ? "رصيد الأكواد" : "Code balance", value: data.codeBalance, icon: "ticket", tone: "violet", sub: `${courses} ${ar ? "دورات" : "courses"}` },
+    { label: ar ? "طلاب هذا الشهر" : "Students this month", value: data.monthlyStudents, icon: "student", tone: "sun" },
+    { label: ar ? "ساعات الحصص المتبقية" : "Live hours left", value: data.hourHours, icon: "clock", tone: "mint", sub: data.subscriptionEndsAt ? `${ar ? "الاشتراك لغاية" : "Plan until"} ${date(data.subscriptionEndsAt)}` : undefined },
+    { label: ar ? "الحصص القادمة" : "Upcoming sessions", value: open.length, icon: "live", tone: "coral", live, sub: live ? (ar ? "حصة مباشرة الآن" : "Live now") : next ? time(next.startsAt) : undefined },
+  ]
 }
 
 function NextLive({ rows }: { rows: SessionRow[] }) {
