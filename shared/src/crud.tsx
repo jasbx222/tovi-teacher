@@ -3,17 +3,19 @@ import { Link } from "react-router"
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
 import { token } from "./api"
 import { useI18n } from "./i18n"
+import { LookupSelect, type LookupConfig } from "./lookup"
 
 export type Field = {
   name: string
   label: string
-  type?: "text" | "number" | "password" | "select" | "textarea" | "file" | "tel" | "date" | "datetime-local"
+  type?: "text" | "number" | "password" | "select" | "textarea" | "file" | "tel" | "date" | "datetime-local" | "lookup"
   options?: string[] | { value: string; label: string }[]
   value?: string
   required?: boolean
   optionalOnEdit?: boolean
   accept?: string
   hint?: string
+  lookup?: LookupConfig
 }
 
 export type Column<T extends Record<string, unknown> = Record<string, unknown>> = {
@@ -181,6 +183,18 @@ export function FormFields({ fields, form, setForm, mode, files, setFiles }: {
     <>
       {fields.map((field) => {
         const required = fieldRequired(field, mode)
+        if (field.type === "lookup" && field.lookup) {
+          return (
+            <LookupSelect
+              key={field.name}
+              label={field.label}
+              required={required}
+              value={form[field.name] ?? ""}
+              onChange={(value) => setForm({ ...form, [field.name]: value })}
+              lookup={field.lookup}
+            />
+          )
+        }
         if (field.type === "file") {
           const chosen = files[field.name]
           const preview = chosen ? URL.createObjectURL(chosen) : (form[`${field.name}Preview`] || "")
@@ -189,7 +203,7 @@ export function FormFields({ fields, form, setForm, mode, files, setFiles }: {
               <span className="dropzone-label">{field.label}{required ? " *" : ""}</span>
               <input className="sr-only" type="file" accept={field.accept ?? "image/png,image/jpeg,image/webp"} required={required} onChange={(event) => setFiles({ ...files, [field.name]: event.target.files?.[0] ?? null })} />
               <span className="dropzone-box">
-                {preview ? <img src={preview} alt="" /> : <i className="dropzone-plus" />}
+                {preview ? (chosen || String(preview).startsWith("blob:") ? <img src={preview} alt="" /> : <AuthImage fileId={preview} alt="" />) : <i className="dropzone-plus" />}
                 <span>
                   <strong>{chosen ? chosen.name : (lang === "ar" ? "اسحب الصورة أو اضغط للاختيار" : "Drop an image or click to choose")}</strong>
                   <small>{field.hint ?? (lang === "ar" ? "PNG أو JPEG أو WEBP" : "PNG, JPEG or WEBP")}</small>

@@ -11,7 +11,7 @@ export type { Field, Column } from "./crud"
 type Page<T> = { items: T[]; page: number; pageSize: number; total: number }
 
 export function Resource<T extends Record<string, unknown>>({
-  path, columns, fields, title, image, update, remove, multipart, createPath, createDefaults, submit, rowHref, pageSize = 20, onAdd,
+  path, columns, fields, title, image, update, remove, multipart, createPath, createDefaults, submit, rowHref, pageSize = 20, onAdd, formTitle,
 }: {
   path: string
   title: string
@@ -23,10 +23,11 @@ export function Resource<T extends Record<string, unknown>>({
   multipart?: boolean
   createPath?: string
   createDefaults?: Record<string, string>
-  submit?: (args: { payload: FormData | Record<string, unknown>; mode: "create" | "edit"; row?: T }) => Promise<void>
+  submit?: (args: { payload: FormData | Record<string, unknown>; mode: "create" | "edit"; row?: T; files: Record<string, File | null> }) => Promise<void>
   rowHref?: (row: T) => string
   pageSize?: number
   onAdd?: () => void
+  formTitle?: (mode: "create" | "edit") => string
 }) {
   const { t, lang } = useI18n()
   const toast = useToast()
@@ -91,8 +92,15 @@ export function Resource<T extends Record<string, unknown>>({
     setMode("edit")
     setCurrent(row)
     const next = valuesFromRow(fields ?? [], row)
-    if (image && typeof image === "string" && row[image]) next.logoPreview = String(row[image])
+    if (image && typeof image === "string" && row[image]) {
+      const preview = String(row[image])
+      next.logoPreview = preview
+      for (const field of fields ?? []) if (field.type === "file") next[`${field.name}Preview`] = preview
+    }
     if (row.logoFileId) next.logoPreview = String(row.logoFileId)
+    if (row.coverFileId) {
+      for (const field of fields ?? []) if (field.type === "file" && field.name === "cover") next.coverPreview = String(row.coverFileId)
+    }
     setForm(next)
     setFiles({})
     setFormError("")
@@ -105,7 +113,7 @@ export function Resource<T extends Record<string, unknown>>({
     setBusy(true)
     try {
       const payload = buildPayload(fields, form, files, Boolean(multipart))
-      if (submit) await submit({ payload, mode, row: current })
+      if (submit) await submit({ payload, mode, row: current, files })
       else if (mode === "edit" && current?.id) {
         const target = `${path.replace(/\?.*$/, "")}/${current.id}`
         if (payload instanceof FormData) await api(target, { method: "PUT", body: payload })
@@ -161,7 +169,7 @@ export function Resource<T extends Record<string, unknown>>({
       {fields ? (
         <FormModal
           open={open}
-          title={mode === "edit" ? `${t.edit} — ${title}` : title}
+          title={formTitle ? formTitle(mode) : (mode === "edit" ? `${t.edit} — ${title}` : title)}
           onClose={() => setOpen(false)}
           onSubmit={onSubmit}
           busy={busy}

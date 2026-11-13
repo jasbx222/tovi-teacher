@@ -5,7 +5,8 @@ import { CourseCoverPicker, FreeToggle, ProfilePhotoPicker } from "../shared/src
 import { useI18n } from "../shared/src/i18n"
 import { Meeting } from "../shared/src/meeting"
 import { teacherPermissions } from "../shared/src/permissions"
-import { Resource } from "../shared/src/resource"
+import { Resource, type Field as FormField } from "../shared/src/resource"
+import { catalogLookup, saveCourse, useLookupLabels } from "../shared/src/lookup"
 import { SessionSummary } from "../shared/src/summary"
 import { SessionLine, sessionPhase, type SessionRow } from "../shared/src/sessions"
 import { PlanetHero } from "../shared/src/vivid"
@@ -147,22 +148,46 @@ function NextLive({ rows }: { rows: SessionRow[] }) {
   )
 }
 
+
+function courseFields(lang: string, base: string, extra: FormField[] = []): FormField[] {
+  const ar = lang === "ar"
+  return [
+    ...extra,
+    { name: "title", label: ar ? "عنوان الدورة" : "Course title", required: true },
+    { name: "description", label: ar ? "الوصف" : "Description", type: "textarea" },
+    { name: "gradeId", label: ar ? "المرحلة" : "Grade", type: "lookup", required: true, lookup: catalogLookup(`${base}/grades`, lang, { ar: "المرحلة", en: "grade" }) },
+    { name: "sectionId", label: ar ? "القسم" : "Section", type: "lookup", required: true, lookup: catalogLookup(`${base}/sections`, lang, { ar: "القسم", en: "section" }) },
+    { name: "subjectId", label: ar ? "المادة" : "Subject", type: "lookup", required: true, lookup: catalogLookup(`${base}/subjects`, lang, { ar: "المادة", en: "subject" }) },
+    { name: "learningDomainId", label: ar ? "المجال" : "Domain", type: "lookup", lookup: catalogLookup(`${base}/learning-domains`, lang, { ar: "المجال", en: "domain" }) },
+    { name: "cover", label: ar ? "غلاف الدورة" : "Course cover", type: "file", required: false },
+  ]
+}
+
 function Courses() {
   const { lang } = useI18n()
+  const ar = lang === "ar"
+  const gradeOf = useLookupLabels("/api/teacher/grades", (row) => String(row.name ?? ""))
+  const subjectOf = useLookupLabels("/api/teacher/subjects", (row) => String(row.name ?? ""))
+  const sectionOf = useLookupLabels("/api/teacher/sections", (row) => String(row.name ?? ""))
   return (
     <Resource
       path="/api/teacher/courses"
-      title={lang === "ar" ? "الدورات" : "Courses"}
+      title={ar ? "الدورات" : "Courses"}
       image="coverFileId"
+      update
       rowHref={(row) => `/courses/${row.id}`}
+      formTitle={(mode) => mode === "edit" ? (ar ? "تعديل دورة" : "Edit course") : (ar ? "إضافة دورة" : "Add course")}
       columns={[
-        { key: "title", label: lang === "ar" ? "العنوان" : "Title" },
-        { key: "description", label: lang === "ar" ? "الوصف" : "Description" },
+        { key: "title", label: ar ? "العنوان" : "Title" },
+        { key: "gradeId", label: ar ? "المرحلة" : "Grade", value: (row) => gradeOf(row.gradeId) },
+        { key: "subjectId", label: ar ? "المادة" : "Subject", value: (row) => subjectOf(row.subjectId) },
+        { key: "sectionId", label: ar ? "القسم" : "Section", value: (row) => sectionOf(row.sectionId) },
       ]}
-      fields={[
-        { name: "title", label: lang === "ar" ? "عنوان الدورة" : "Course title", required: true },
-        { name: "description", label: lang === "ar" ? "الوصف" : "Description", type: "textarea" },
-      ]}
+      fields={courseFields(lang, "/api/teacher")}
+      submit={async ({ payload, mode, row, files }) => {
+        const body = payload instanceof FormData ? Object.fromEntries(payload.entries()) : payload
+        await saveCourse("/api/teacher", body as Record<string, unknown>, files, mode, row)
+      }}
     />
   )
 }
