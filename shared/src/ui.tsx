@@ -1,5 +1,6 @@
 import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react"
 import { Link } from "react-router"
+import { CountUp, Planet } from "./vivid"
 
 export function Mast({ kicker, title, lede, action }: { kicker?: string; title: string; lede?: string; action?: ReactNode }) {
   return (
@@ -20,17 +21,17 @@ export function MetricBand({ items }: { items: { label: string; value: string | 
   const rest = items.filter((item) => item !== lead)
   return (
     <section className="ledger">
-      <div className="ledger-main">
+      <div className="ledger-main tilt">
         <span>{lead.label}</span>
-        <strong>{lead.value}</strong>
+        <strong><CountUp value={lead.value} /></strong>
         {lead.hint ? <small>{lead.hint}</small> : null}
       </div>
       {rest.length > 0 ? (
         <ul className="ledger-side">
           {rest.map((item) => (
-            <li key={item.label}>
+            <li key={item.label} className="tilt">
               <span>{item.label}</span>
-              <strong>{item.value}</strong>
+              <strong><CountUp value={item.value} /></strong>
               {item.hint ? <small>{item.hint}</small> : null}
             </li>
           ))}

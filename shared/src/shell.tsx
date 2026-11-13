@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { NavLink, useLocation, useNavigate } from "react-router"
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
+import { TiltLayer } from "./vivid"
 import { setToken } from "./api"
 import { useI18n } from "./i18n"
 
@@ -54,6 +55,7 @@ export function Shell({ title, items, children }: { title: string; items: NavIte
   let lastGroup = ""
   return (
     <div className="tovi-app">
+      <TiltLayer />
       {open ? <button className="scrim" aria-label={t.close} onClick={() => setOpen(false)} /> : null}
       <aside className={open ? "tovi-side open" : "tovi-side"}>
         <div className="brand">
