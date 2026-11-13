@@ -6,7 +6,8 @@ import { Meeting } from "../shared/src/meeting"
 import { teacherPermissions } from "../shared/src/permissions"
 import { Resource } from "../shared/src/resource"
 import { SessionSummary } from "../shared/src/summary"
-import { SessionLine, type SessionRow } from "../shared/src/sessions"
+import { SessionLine, sessionPhase, type SessionRow } from "../shared/src/sessions"
+import { PlanetHero } from "../shared/src/vivid"
 import { LoginCard, Shell, type NavItem } from "../shared/src/shell"
 import { Area, Callout, CourseCards, Field, Mast, MetricBand, PermissionPicker, SelectField, StatusText } from "../shared/src/ui"
 
@@ -77,16 +78,20 @@ function Home() {
   const { lang } = useI18n()
   const [data, setData] = useState<{ codeBalance: number; monthlyStudents: number; hourHours: number; subscriptionEndsAt?: string | null } | null>(null)
   const [courses, setCourses] = useState<Row[]>([])
+  const [sessions, setSessions] = useState<SessionRow[]>([])
   const [error, setError] = useState("")
   useEffect(() => {
     api<NonNullable<typeof data>>("/api/teacher/home").then(setData).catch((reason) => setError(reason.message))
+    api<SessionRow[]>("/api/teacher/sessions").then(setSessions).catch(() => setSessions([]))
     api<{ items: Row[] }>("/api/teacher/courses").then((page) => setCourses(page.items ?? [])).catch(() => setCourses([]))
   }, [])
   if (error) return <Callout tone="bad">{error}</Callout>
   if (!data) return <div className="panel"><div className="skel" /><div className="skel" style={{ marginTop: 12, width: "46%" }} /></div>
   return (
     <div className="page">
-      <Mast kicker={lang === "ar" ? "استوديو المعلم" : "Teacher studio"} title={lang === "ar" ? "رصيدك وطلاب هذا الشهر" : "Your balance and this month's students"} lede={lang === "ar" ? "هذه الأرقام من حسابك على الخادم." : "These numbers come from your account on the server."} />
+      <PlanetHero kicker={lang === "ar" ? "استوديو المعلم" : "Teacher studio"} title={lang === "ar" ? "رصيدك وطلاب هذا الشهر" : "Your balance and this month's students"} lede={lang === "ar" ? "هذه الأرقام من حسابك على الخادم." : "These numbers come from your account on the server."}>
+        <NextLive rows={sessions} />
+      </PlanetHero>
       <MetricBand items={[
         { label: lang === "ar" ? "رصيد الأكواد" : "Code balance", value: data.codeBalance, lead: true },
         { label: lang === "ar" ? "طلاب هذا الشهر" : "Students this month", value: data.monthlyStudents },
@@ -100,6 +105,24 @@ function Home() {
         </section>
       ) : null}
     </div>
+  )
+}
+
+function NextLive({ rows }: { rows: SessionRow[] }) {
+  const { lang } = useI18n()
+  const ar = lang === "ar"
+  const open = rows.filter((row) => ["live", "lobby", "upcoming"].includes(sessionPhase(row))).sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+  const next = open[0]
+  if (!next) return <span className="tv-glass-chip">{ar ? "ماكو حصص قادمة" : "No upcoming sessions"}</span>
+  const phase = sessionPhase(next)
+  const when = new Date(next.startsAt).toLocaleString(ar ? "ar-IQ" : "en-GB", { weekday: "short", hour: "numeric", minute: "2-digit" })
+  return (
+    <>
+      {phase === "live" ? <span className="tv-chip live"><i className="tv-dot" />{ar ? "مباشر الآن" : "Live now"}</span> : null}
+      <span className="tv-glass-chip"><strong>{next.title || (ar ? "حصة مباشرة" : "Live session")}</strong> · {when}</span>
+      <Link className="btn" to={`/meetings/${next.id}`}>{phase === "live" ? (ar ? "ادخل الاستوديو" : "Enter studio") : (ar ? "جهّز الحصة" : "Prepare")}</Link>
+      <span className="tv-glass-chip">{open.length} {ar ? "حصص قادمة" : "upcoming"}</span>
+    </>
   )
 }
 
