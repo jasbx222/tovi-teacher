@@ -7,6 +7,7 @@ import { prefixer } from "stylis"
 import rtlPlugin from "stylis-plugin-rtl"
 import { BrowserRouter } from "react-router"
 import { I18nProvider, useI18n } from "../shared/src/i18n"
+import { ToastProvider } from "../shared/src/crud"
 import { themeFor } from "../shared/src/theme"
 import App from "./App"
 import "./index.css"
@@ -19,7 +20,7 @@ function Root() {
       <ThemeProvider theme={themeFor(dir)}>
         <CssBaseline />
         <BrowserRouter>
-          <App />
+          <ToastProvider><App /></ToastProvider>
         </BrowserRouter>
       </ThemeProvider>
     </CacheProvider>
