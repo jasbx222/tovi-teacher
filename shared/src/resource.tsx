@@ -72,6 +72,8 @@ export function Resource<T extends Record<string, unknown>>({
     return rows.filter((row) => JSON.stringify(row).toLowerCase().includes(needle))
   }, [rows, query])
 
+  const [formError, setFormError] = useState("")
+
   return (
     <section className="panel">
       <div className="toolbar">
@@ -80,24 +82,24 @@ export function Resource<T extends Record<string, unknown>>({
           <p className="lede">{lang === "ar" ? `${total} سجل من الخادم` : `${total} records from the server`}</p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <input className="search" value={query} placeholder={t.search} onChange={(e) => setQuery(e.target.value)} />
-          {fields ? <button className="btn" onClick={() => { setForm(Object.fromEntries((fields ?? []).map((field) => [field.name, field.value ?? ""]))); setOpen(true) }}>{t.create}</button> : null}
+          <input className="search" value={query} placeholder={t.search} onChange={(e) => setQuery(e.target.value)} aria-label={t.search} />
+          {fields ? <button className="btn" type="button" onClick={() => { setForm(Object.fromEntries((fields ?? []).map((field) => [field.name, field.value ?? ""]))); setFormError(""); setOpen(true) }}>{t.create}</button> : null}
         </div>
       </div>
-      {error ? <p className="callout">{error}</p> : null}
+      {error ? <p className="callout" role="alert">{error}</p> : null}
       <div className="table-wrap">
         <table className="data">
           <thead><tr>{columns.map((column) => <th key={column.key}>{column.label}</th>)}</tr></thead>
           <tbody>
-            {loading ? Array.from({ length: 4 }).map((_, index) => (
+            {loading ? Array.from({ length: 5 }).map((_, index) => (
               <tr key={index}>{columns.map((column) => <td key={column.key}><div className="skel" /></td>)}</tr>
             )) : visible.length === 0 ? (
-              <tr><td colSpan={columns.length}><div className="empty"><i /><div>{t.empty}</div></div></td></tr>
+              <tr><td colSpan={columns.length}><div className="empty"><i /><strong>{t.empty}</strong></div></td></tr>
             ) : visible.map((row, index) => (
               <tr key={String(row.id ?? index)}>
                 {columns.map((column) => {
                   const cell = present(row[column.key], lang)
-                  return <td key={column.key}>{cell.kind ? <span className={`pill ${cell.kind}`}>{cell.text}</span> : cell.text}</td>
+                  return <td key={column.key} data-label={column.label}>{cell.kind ? <span className={`pill ${cell.kind}`}>{cell.text}</span> : cell.text}</td>
                 })}
               </tr>
             ))}
@@ -105,27 +107,33 @@ export function Resource<T extends Record<string, unknown>>({
         </table>
       </div>
       <div className="pager">
-        <span>{page}</span>
+        <span>{lang === "ar" ? `صفحة ${page}` : `Page ${page}`}</span>
         <span style={{ display: "flex", gap: 8 }}>
-          <button className="ghost" disabled={page <= 1} onClick={() => { const next = page - 1; setPage(next); void load(next) }}>{lang === "ar" ? "السابق" : "Previous"}</button>
-          <button className="ghost" disabled={page * 20 >= total} onClick={() => { const next = page + 1; setPage(next); void load(next) }}>{lang === "ar" ? "التالي" : "Next"}</button>
+          <button className="ghost" type="button" disabled={page <= 1} onClick={() => { const next = page - 1; setPage(next); void load(next) }}>{lang === "ar" ? "السابق" : "Previous"}</button>
+          <button className="ghost" type="button" disabled={page * 20 >= total} onClick={() => { const next = page + 1; setPage(next); void load(next) }}>{lang === "ar" ? "التالي" : "Next"}</button>
         </span>
       </div>
       {open ? (
         <div className="modal-back" onClick={() => setOpen(false)}>
-          <form className="modal" onClick={(event) => event.stopPropagation()} onSubmit={async (event) => {
+          <form className="modal" role="dialog" aria-modal="true" aria-labelledby="resource-dialog-title" onClick={(event) => event.stopPropagation()} onSubmit={async (event) => {
             event.preventDefault()
+            setFormError("")
             const payload: Record<string, unknown> = {}
             for (const field of fields ?? []) {
               const raw = form[field.name] ?? ""
               if (raw === "") continue
               payload[field.name] = field.type === "number" ? Number(raw) : raw === "true" ? true : raw === "false" ? false : raw
             }
-            await api(path, { method: "POST", body: JSON.stringify(payload) })
-            setOpen(false)
-            await load()
-          }}>
-            <h2>{title}</h2>
+            try {
+              await api(path, { method: "POST", body: JSON.stringify(payload) })
+              setOpen(false)
+              await load()
+            } catch (reason) {
+              setFormError(reason instanceof ApiError ? reason.message : t.error)
+            }
+          }} onKeyDown={(event) => { if (event.key === "Escape") setOpen(false) }}>
+            <h2 id="resource-dialog-title">{title}</h2>
+            {formError ? <p className="form-error" role="alert">{formError}</p> : null}
             {fields?.map((field) => (
               <label key={field.name} className="field">{field.label}
                 {field.type === "select" ? (

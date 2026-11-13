@@ -53,6 +53,7 @@ function Stage({ sessionId, role, chat }: { sessionId: string; role: "teacher" |
   const [messages, setMessages] = useState<string[]>([])
   const [started] = useState(Date.now())
   const [elapsed, setElapsed] = useState(0)
+  const [rail, setRail] = useState<"people" | "hands" | "chat">("people")
   const ar = lang === "ar"
 
   useEffect(() => {
@@ -80,72 +81,88 @@ function Stage({ sessionId, role, chat }: { sessionId: string; role: "teacher" |
 
   const minutes = String(Math.floor(elapsed / 60)).padStart(2, "0")
   const seconds = String(elapsed % 60).padStart(2, "0")
+  const qualityClass = (value: string) => value === "excellent" || value === "good" ? "ok" : value === "poor" ? "wait" : value === "lost" ? "bad" : "info"
 
   return (
     <div className="meet">
       <section className="stage">
         <div className="stage-top">
+          <span className="pill live">{ar ? "مباشر" : "Live"}</span>
           <span className="pill info">{room.state}</span>
           <span className="pill">{minutes}:{seconds}</span>
           <span className="pill">{localParticipant.isMicrophoneEnabled ? (ar ? "المايك مفتوح" : "Mic on") : (ar ? "المايك مغلق" : "Mic off")}</span>
-          <span className="pill">{localParticipant.isScreenShareEnabled ? (ar ? "مشاركة الشاشة" : "Sharing") : (ar ? "بدون مشاركة" : "No share")}</span>
         </div>
         <div className="stage-grid">
-          {tiles.length === 0 ? <div className="waiting">{ar ? "بانتظار الصورة" : "Waiting for video"}</div> : tiles.map((tile) => (
+          {tiles.length === 0 ? <div className="waiting">{ar ? "بانتظار أن يفتح أحد الكاميرا" : "Waiting for a camera"}</div> : tiles.map((tile) => (
             <Tile key={tile.key} track={tile.track} name={tile.name} />
           ))}
         </div>
         <div className="dock">
-          <button className={localParticipant.isMicrophoneEnabled ? "on" : ""} onClick={() => localParticipant.setMicrophoneEnabled(!localParticipant.isMicrophoneEnabled)}>{ar ? "المايك" : "Mic"}</button>
-          <button className={localParticipant.isCameraEnabled ? "on" : ""} onClick={() => localParticipant.setCameraEnabled(!localParticipant.isCameraEnabled)}>{ar ? "الكاميرا" : "Camera"}</button>
-          <button className={localParticipant.isScreenShareEnabled ? "on" : ""} onClick={() => localParticipant.setScreenShareEnabled(!localParticipant.isScreenShareEnabled)}>{ar ? "الشاشة" : "Share"}</button>
-          {role === "teacher" ? <button onClick={() => api(`/api/teacher/sessions/${sessionId}/participants/mute`, { method: "POST", body: JSON.stringify({ allStudents: true }) })}>{ar ? "كتم الطلاب" : "Mute students"}</button> : null}
-          {role === "student" ? <button onClick={() => send({ type: "hand", from: localParticipant.identity, raised: true })}>{ar ? "رفع اليد" : "Raise hand"}</button> : null}
-          <button className="leave" onClick={() => room.disconnect()}>{ar ? "مغادرة" : "Leave"}</button>
+          <button type="button" className={localParticipant.isMicrophoneEnabled ? "on" : ""} onClick={() => localParticipant.setMicrophoneEnabled(!localParticipant.isMicrophoneEnabled)}><MicIcon />{ar ? "المايك" : "Mic"}</button>
+          <button type="button" className={localParticipant.isCameraEnabled ? "on" : ""} onClick={() => localParticipant.setCameraEnabled(!localParticipant.isCameraEnabled)}><CamIcon />{ar ? "الكاميرا" : "Camera"}</button>
+          <button type="button" className={localParticipant.isScreenShareEnabled ? "on" : ""} onClick={() => localParticipant.setScreenShareEnabled(!localParticipant.isScreenShareEnabled)}><ShareIcon />{ar ? "الشاشة" : "Share"}</button>
+          {role === "teacher" ? <button type="button" onClick={() => api(`/api/teacher/sessions/${sessionId}/participants/mute`, { method: "POST", body: JSON.stringify({ allStudents: true }) })}><MicIcon />{ar ? "كتم الطلاب" : "Mute students"}</button> : null}
+          {role === "student" ? <button type="button" onClick={() => send({ type: "hand", from: localParticipant.identity, raised: true })}><HandIcon />{ar ? "رفع اليد" : "Raise hand"}</button> : null}
+          <button type="button" className="leave" onClick={() => room.disconnect()}><LeaveIcon />{ar ? "مغادرة" : "Leave"}</button>
         </div>
       </section>
       <aside className="rail">
-        <section>
-          <h2>{ar ? "الحضور" : "People"}</h2>
-          {people.map((person) => (
+        <div className="rail-tabs" role="tablist">
+          <button type="button" className={rail === "people" ? "on" : ""} onClick={() => setRail("people")}>{ar ? "الحضور" : "People"}</button>
+          <button type="button" className={rail === "hands" ? "on" : ""} onClick={() => setRail("hands")}>{ar ? "الأيدي" : "Hands"}{hands.length ? ` ${hands.length}` : ""}</button>
+          <button type="button" className={rail === "chat" ? "on" : ""} onClick={() => setRail("chat")}>{ar ? "المحادثة" : "Chat"}</button>
+        </div>
+        <div className="rail-body" role="tabpanel">
+          {rail === "people" ? people.map((person) => (
             <div key={person.identity} className="person">
               <span>{person.identity}</span>
-              <span className="pill">{person.connectionQuality}</span>
-              {role === "teacher" && person.identity.startsWith("student:") ? <button className="quiet" onClick={() => api(`/api/teacher/sessions/${sessionId}/participants/remove`, { method: "POST", body: JSON.stringify({ identity: person.identity }) })}>×</button> : null}
+              <span className={`pill ${qualityClass(person.connectionQuality)}`}>{person.connectionQuality}</span>
+              {role === "teacher" && person.identity.startsWith("student:") ? <button type="button" className="quiet" onClick={() => api(`/api/teacher/sessions/${sessionId}/participants/remove`, { method: "POST", body: JSON.stringify({ identity: person.identity }) })} aria-label={ar ? "إخراج" : "Remove"}>×</button> : null}
             </div>
-          ))}
-        </section>
-        <section>
-          <h2>{ar ? "الأيدي المرفوعة" : "Raised hands"}</h2>
-          {hands.length === 0 ? <p className="lede">{ar ? "لا توجد أيدٍ مرفوعة" : "No raised hands"}</p> : hands.map((hand) => <p key={hand}>{hand}</p>)}
-          {role === "teacher" ? (
-            <form className="composer-row" onSubmit={(event) => { event.preventDefault(); if (!note.trim()) return; send({ type: "announcement", text: note }); setAnnouncements((list) => [note, ...list]); setNote("") }}>
-              <input className="bare" value={note} onChange={(e) => setNote(e.target.value)} placeholder={ar ? "إعلان للطلاب" : "Announcement"} />
-              <button className="btn" type="submit">{ar ? "إرسال" : "Send"}</button>
-            </form>
+          )) : null}
+          {rail === "hands" ? (
+            <>
+              {hands.length === 0 ? <p className="lede">{ar ? "لا توجد أيدٍ مرفوعة" : "No raised hands"}</p> : hands.map((hand) => <p key={hand} className="bubble">{hand}</p>)}
+              {role === "teacher" ? (
+                <form className="composer-row" onSubmit={(event) => { event.preventDefault(); if (!note.trim()) return; send({ type: "announcement", text: note }); setAnnouncements((list) => [note, ...list]); setNote("") }}>
+                  <input className="bare" value={note} onChange={(e) => setNote(e.target.value)} placeholder={ar ? "إعلان للطلاب" : "Announcement"} />
+                  <button className="btn" type="submit">{ar ? "إرسال" : "Send"}</button>
+                </form>
+              ) : null}
+              {announcements.map((item, index) => <p key={index} className="bubble">{item}</p>)}
+            </>
           ) : null}
-          {announcements.map((item, index) => <p key={index} className="bubble">{item}</p>)}
-        </section>
-        <section>
-          <h2>{ar ? "المحادثة" : "Chat"}</h2>
-          <p className="lede">{chat ? `${chat.environment} · ${chat.path}` : (ar ? "فايرستور غير مهيأ، القناة المباشرة تبقى متاحة" : "Firestore is not configured. The live channel stays available.")}</p>
-          <div className="chat-log">{messages.map((item, index) => <p key={index} className="bubble">{item}</p>)}</div>
-          <form className="composer-row" onSubmit={(event) => {
-            event.preventDefault()
-            if (!message.trim()) return
-            if (chat?.environment === "production" && import.meta.env.DEV) return
-            send({ type: "chat", text: message })
-            setMessages((list) => [...list, message])
-            setMessage("")
-          }}>
-            <input className="bare" value={message} onChange={(e) => setMessage(e.target.value)} placeholder={ar ? "رسالة" : "Message"} />
-            <button className="btn" type="submit">{ar ? "إرسال" : "Send"}</button>
-          </form>
-        </section>
+          {rail === "chat" ? (
+            <>
+              <p className="lede">{chat ? `${chat.environment} · ${chat.path}` : (ar ? "فايرستور غير مهيأ، القناة المباشرة تبقى متاحة" : "Firestore is not configured. The live channel stays available.")}</p>
+              <div className="chat-log">{messages.map((item, index) => <p key={index} className="bubble">{item}</p>)}</div>
+              <form className="composer-row" onSubmit={(event) => {
+                event.preventDefault()
+                if (!message.trim()) return
+                if (chat?.environment === "production" && import.meta.env.DEV) return
+                send({ type: "chat", text: message })
+                setMessages((list) => [...list, message])
+                setMessage("")
+              }}>
+                <input className="bare" value={message} onChange={(e) => setMessage(e.target.value)} placeholder={ar ? "رسالة" : "Message"} />
+                <button className="btn" type="submit">{ar ? "إرسال" : "Send"}</button>
+              </form>
+            </>
+          ) : null}
+        </div>
       </aside>
     </div>
   )
 }
+
+function Icon({ d }: { d: string }) {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d={d} strokeLinecap="round" strokeLinejoin="round" /></svg>
+}
+function MicIcon() { return <Icon d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM6 11a6 6 0 0 0 12 0M12 17v4" /> }
+function CamIcon() { return <Icon d="M4 7h10v10H4zM14 10.5 20 7v10l-6-3.5" /> }
+function ShareIcon() { return <Icon d="M8 12h8M12 8v8M5 19h14" /> }
+function HandIcon() { return <Icon d="M8 11V6a1.5 1.5 0 0 1 3 0v5M11 8V5.5a1.5 1.5 0 0 1 3 0V11M14 9V7a1.5 1.5 0 0 1 3 0v8a5 5 0 0 1-5 5H9a4 4 0 0 1-4-4v-4a1.5 1.5 0 0 1 3 0" /> }
+function LeaveIcon() { return <Icon d="M10 7V5H5v14h5v-2M10 12h9M16 9l3 3-3 3" /> }
 
 function Tile({ track, name }: { track: NonNullable<TrackPublication["track"]>; name: string }) {
   const ref = useRef<HTMLVideoElement>(null)

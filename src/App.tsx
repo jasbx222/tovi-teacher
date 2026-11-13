@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react"
 import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router"
-import { Alert, Button, TextField } from "@mui/material"
 import { api, download, setToken, type SessionUser } from "../shared/src/api"
 import { useI18n } from "../shared/src/i18n"
 import { Meeting } from "../shared/src/meeting"
 import { teacherPermissions } from "../shared/src/permissions"
 import { Resource } from "../shared/src/resource"
 import { LoginCard, Shell, type NavItem } from "../shared/src/shell"
-import { Callout, CourseCards, Mast, MetricBand } from "../shared/src/ui"
+import { Area, Callout, CourseCards, Field, Mast, MetricBand, PermissionPicker, SelectField, StatusText } from "../shared/src/ui"
 
 const nav: (NavItem & { permission?: string })[] = [
   { to: "/", ar: "الرئيسية", en: "Home", group: "الاستوديو|Studio" },
@@ -45,7 +44,7 @@ function Frame() {
   const navigate = useNavigate()
   const { lang } = useI18n()
   useEffect(() => { api<SessionUser>("/api/auth/me").then(setMe).catch(() => navigate("/login")) }, [navigate])
-  if (!me) return null
+  if (!me) return <div className="boot" role="status" aria-label={lang === "ar" ? "جار التحميل" : "Loading"}><div className="skel" /><div className="skel" /><div className="skel short" /></div>
   const items = nav.filter((item) => !item.permission || me.permissions.includes(item.permission))
   return (
     <Shell title={lang === "ar" ? "المعلم" : "Teacher"} items={items}>
@@ -74,19 +73,29 @@ function Frame() {
 function Home() {
   const { lang } = useI18n()
   const [data, setData] = useState<{ codeBalance: number; monthlyStudents: number; hourHours: number; subscriptionEndsAt?: string | null } | null>(null)
+  const [courses, setCourses] = useState<Row[]>([])
   const [error, setError] = useState("")
-  useEffect(() => { api<NonNullable<typeof data>>("/api/teacher/home").then(setData).catch((reason) => setError(reason.message)) }, [])
+  useEffect(() => {
+    api<NonNullable<typeof data>>("/api/teacher/home").then(setData).catch((reason) => setError(reason.message))
+    api<{ items: Row[] }>("/api/teacher/courses").then((page) => setCourses(page.items ?? [])).catch(() => setCourses([]))
+  }, [])
   if (error) return <Callout tone="bad">{error}</Callout>
   if (!data) return <div className="panel"><div className="skel" /><div className="skel" style={{ marginTop: 12, width: "46%" }} /></div>
   return (
-    <div className="stack">
-      <Mast kicker={lang === "ar" ? "استوديو المعلم" : "Teacher studio"} title={lang === "ar" ? "رصيدك وطلاب هذا الشهر" : "Your balance and this month's students"} lede={lang === "ar" ? "هذه الأرقام من حسابك على الخادم، وليست تقديراً." : "These numbers come from your account on the server."} />
+    <div className="page">
+      <Mast kicker={lang === "ar" ? "استوديو المعلم" : "Teacher studio"} title={lang === "ar" ? "رصيدك وطلاب هذا الشهر" : "Your balance and this month's students"} lede={lang === "ar" ? "هذه الأرقام من حسابك على الخادم." : "These numbers come from your account on the server."} />
       <MetricBand items={[
         { label: lang === "ar" ? "رصيد الأكواد" : "Code balance", value: data.codeBalance, lead: true },
         { label: lang === "ar" ? "طلاب هذا الشهر" : "Students this month", value: data.monthlyStudents },
         { label: lang === "ar" ? "ساعات الحصة المتبقية" : "Remaining hours", value: data.hourHours },
         { label: lang === "ar" ? "نهاية الاشتراك" : "Subscription end", value: data.subscriptionEndsAt ? new Date(data.subscriptionEndsAt).toLocaleDateString(lang === "ar" ? "ar-IQ" : "en") : "—" },
       ]} />
+      {courses.length > 0 ? (
+        <section className="stack">
+          <Mast title={lang === "ar" ? "الدورات" : "Courses"} />
+          <CourseCards rows={courses.map((row) => ({ id: row.id, title: row.title }))} href={(id) => `/courses/${id}`} empty="" />
+        </section>
+      ) : null}
     </div>
   )
 }
@@ -95,27 +104,29 @@ function Courses() {
   const { lang } = useI18n()
   const [title, setTitle] = useState("")
   const [error, setError] = useState("")
+  const [tick, setTick] = useState(0)
   return (
-    <div className="space-y-4">
-      <form className="composer" onSubmit={async (event) => {
+    <div className="page">
+      <Mast title={lang === "ar" ? "الدورات" : "Courses"} lede={lang === "ar" ? "أنشئ الدورة ثم افتحها لترتيب الفصول والدروس." : "Create a course, then open it to arrange chapters and lessons."} />
+      <form className="composer inline" onSubmit={async (event) => {
         event.preventDefault()
         setError("")
-        try { await api("/api/teacher/courses", { method: "POST", body: JSON.stringify({ title }) }); setTitle(""); location.reload() }
+        try { await api("/api/teacher/courses", { method: "POST", body: JSON.stringify({ title }) }); setTitle(""); setTick((value) => value + 1) }
         catch (reason) { setError(reason instanceof Error ? reason.message : "") }
       }}>
-        <TextField label={lang === "ar" ? "عنوان الدورة" : "Course title"} value={title} onChange={(e) => setTitle(e.target.value)} />
-        <Button type="submit" variant="contained">{lang === "ar" ? "إنشاء" : "Create"}</Button>
-        {error ? <Alert severity="error">{error}</Alert> : null}
+        <Field label={lang === "ar" ? "عنوان الدورة" : "Course title"} value={title} onChange={(e) => setTitle(e.target.value)} />
+        <button className="btn" type="submit">{lang === "ar" ? "إنشاء" : "Create"}</button>
       </form>
-      <CourseList />
+      {error ? <Callout tone="bad">{error}</Callout> : null}
+      <CourseList tick={tick} />
     </div>
   )
 }
 
-function CourseList() {
+function CourseList({ tick = 0 }: { tick?: number }) {
   const { lang } = useI18n()
   const [rows, setRows] = useState<Row[]>([])
-  useEffect(() => { api<{ items: Row[] }>("/api/teacher/courses").then((page) => setRows(page.items ?? [])).catch(() => setRows([])) }, [])
+  useEffect(() => { api<{ items: Row[] }>("/api/teacher/courses").then((page) => setRows(page.items ?? [])).catch(() => setRows([])) }, [tick])
   return <CourseCards rows={rows.map((row) => ({ id: row.id, title: row.title }))} href={(id) => `/courses/${id}`} empty={lang === "ar" ? "لا توجد دورات بعد" : "No courses yet"} />
 }
 
@@ -126,26 +137,50 @@ function CourseDesk() {
   const [title, setTitle] = useState("")
   const [count, setCount] = useState(1)
   const [message, setMessage] = useState("")
+  const [askFormat, setAskFormat] = useState(false)
   async function load() { setChapters(await api(`/api/teacher/courses/${id}/chapters`)) }
   useEffect(() => { void load() }, [id])
   return (
-    <div className="space-y-4">
-      <form className="flex gap-2" onSubmit={async (event) => { event.preventDefault(); await api("/api/teacher/chapters", { method: "POST", body: JSON.stringify({ courseId: id, title }) }); setTitle(""); await load() }}>
-        <TextField label={lang === "ar" ? "فصل" : "Chapter"} value={title} onChange={(e) => setTitle(e.target.value)} />
-        <Button type="submit" variant="contained">{lang === "ar" ? "إضافة فصل" : "Add chapter"}</Button>
-      </form>
-      {chapters.map((chapter) => <Chapter key={chapter.id} chapter={chapter} />)}
-      <form className="flex flex-wrap items-end gap-2 panel p-4" onSubmit={async (event) => {
-        event.preventDefault()
-        const result = await api<{ remaining: number }>(`/api/teacher/codes?courseId=${id}`, { method: "POST", body: JSON.stringify({ count }) })
-        setMessage(`${lang === "ar" ? "المتبقي" : "Remaining"}: ${result.remaining}`)
-      }}>
-        <TextField type="number" label={lang === "ar" ? "عدد الأكواد، حد 100" : "Codes, max 100"} value={count} onChange={(e) => setCount(Number(e.target.value))} />
-        <Button type="submit" variant="contained">{lang === "ar" ? "توليد" : "Generate"}</Button>
-        <Button onClick={() => download(`/api/teacher/courses/${id}/codes/export`, "tovi-codes.xlsx")}>{lang === "ar" ? "تنزيل الجدول" : "Download spreadsheet"}</Button>
-        <Button color="warning" onClick={async () => { await api(`/api/teacher/courses/${id}/format`, { method: "POST" }); setMessage(lang === "ar" ? "تمت إعادة ضبط التسجيلات" : "Enrollments were reset") }}>{lang === "ar" ? "تهيئة الدورة" : "Format course"}</Button>
-        {message ? <Alert severity="info">{message}</Alert> : null}
-      </form>
+    <div className="page">
+      <Mast title={lang === "ar" ? "محتوى الدورة" : "Course studio"} lede={lang === "ar" ? "الفصول والدروس في الاستوديو، وتوزيع الأكواد في الجانب." : "Chapters and lessons stay in the studio. Codes sit beside them."} />
+      <div className="split">
+        <div className="stack">
+          <form className="composer inline" onSubmit={async (event) => { event.preventDefault(); await api("/api/teacher/chapters", { method: "POST", body: JSON.stringify({ courseId: id, title }) }); setTitle(""); await load() }}>
+            <Field label={lang === "ar" ? "فصل" : "Chapter"} value={title} onChange={(e) => setTitle(e.target.value)} />
+            <button className="btn" type="submit">{lang === "ar" ? "إضافة فصل" : "Add chapter"}</button>
+          </form>
+          {chapters.map((chapter) => <Chapter key={chapter.id} chapter={chapter} />)}
+        </div>
+        <aside className="sheet stack">
+          <h2>{lang === "ar" ? "الأكواد" : "Codes"}</h2>
+          <form className="stack" onSubmit={async (event) => {
+            event.preventDefault()
+            const result = await api<{ remaining: number }>(`/api/teacher/codes?courseId=${id}`, { method: "POST", body: JSON.stringify({ count }) })
+            setMessage(`${lang === "ar" ? "المتبقي" : "Remaining"}: ${result.remaining}`)
+          }}>
+            <Field type="number" label={lang === "ar" ? "عدد الأكواد، حد 100" : "Codes, max 100"} value={count} onChange={(e) => setCount(Number(e.target.value))} />
+            <button className="btn" type="submit">{lang === "ar" ? "توليد" : "Generate"}</button>
+          </form>
+          <button className="ghost" type="button" onClick={() => download(`/api/teacher/courses/${id}/codes/export`, "tovi-codes.xlsx")}>{lang === "ar" ? "تنزيل الجدول" : "Download spreadsheet"}</button>
+          {message ? <Callout tone="info">{message}</Callout> : null}
+          <div className="danger-zone">
+            <p>{lang === "ar" ? "تهيئة الدورة تعيد ضبط التسجيلات." : "Formatting the course resets enrollments."}</p>
+            <button className="danger" type="button" onClick={() => setAskFormat(true)}>{lang === "ar" ? "تهيئة الدورة" : "Format course"}</button>
+          </div>
+        </aside>
+      </div>
+      {askFormat ? (
+        <div className="modal-back" onClick={() => setAskFormat(false)}>
+          <div className="modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+            <h2>{lang === "ar" ? "تهيئة الدورة" : "Format course"}</h2>
+            <p className="lede">{lang === "ar" ? "سيُعاد ضبط تسجيلات هذه الدورة." : "Enrollments on this course will be reset."}</p>
+            <div className="modal-actions">
+              <button className="ghost" type="button" onClick={() => setAskFormat(false)}>{lang === "ar" ? "تراجع" : "Back"}</button>
+              <button className="danger" type="button" onClick={async () => { await api(`/api/teacher/courses/${id}/format`, { method: "POST" }); setMessage(lang === "ar" ? "تمت إعادة ضبط التسجيلات" : "Enrollments were reset"); setAskFormat(false) }}>{lang === "ar" ? "تهيئة" : "Format"}</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -158,20 +193,18 @@ function Chapter({ chapter }: { chapter: Row }) {
   async function load() { setLessons(await api(`/api/teacher/chapters/${chapter.id}/lessons`)) }
   useEffect(() => { void load() }, [chapter.id])
   return (
-    <section className="panel p-4">
-      <h2 className="font-bold">{chapter.title}</h2>
+    <section className="sheet">
+      <h2>{chapter.title}</h2>
       {lessons.map((lesson, index) => (
-        <div key={lesson.id} className="flex items-center justify-between border-b py-2 text-sm">
-          <span>{lesson.title}{lesson.videoReference ? ` · ${lesson.videoReference}` : ""}</span>
-          <span className="flex gap-2">
-            <button disabled={index === 0} onClick={async () => { const ids = lessons.map((item) => item.id); [ids[index - 1], ids[index]] = [ids[index], ids[index - 1]]; await api(`/api/teacher/chapters/${chapter.id}/lessons/order`, { method: "PUT", body: JSON.stringify({ lessonIds: ids }) }); await load() }}>↑</button>
-          </span>
+        <div key={lesson.id} className="lesson-row">
+          <span>{lesson.title}{lesson.videoReference ? <small> · {lesson.videoReference}</small> : null}</span>
+          <button className="ghost" type="button" disabled={index === 0} aria-label={lang === "ar" ? "تقديم" : "Move up"} onClick={async () => { const ids = lessons.map((item) => item.id); [ids[index - 1], ids[index]] = [ids[index], ids[index - 1]]; await api(`/api/teacher/chapters/${chapter.id}/lessons/order`, { method: "PUT", body: JSON.stringify({ lessonIds: ids }) }); await load() }}>↑</button>
         </div>
       ))}
-      <form className="mt-3 flex flex-wrap gap-2" onSubmit={async (event) => { event.preventDefault(); await api("/api/teacher/lessons", { method: "POST", body: JSON.stringify({ chapterId: chapter.id, title, videoReference: video || null }) }); setTitle(""); setVideo(""); await load() }}>
-        <TextField size="small" label={lang === "ar" ? "درس" : "Lesson"} value={title} onChange={(e) => setTitle(e.target.value)} />
-        <TextField size="small" label={lang === "ar" ? "مرجع الفيديو" : "Video reference"} value={video} onChange={(e) => setVideo(e.target.value)} />
-        <Button type="submit">{lang === "ar" ? "إضافة" : "Add"}</Button>
+      <form className="form-grid" style={{ marginTop: 12 }} onSubmit={async (event) => { event.preventDefault(); await api("/api/teacher/lessons", { method: "POST", body: JSON.stringify({ chapterId: chapter.id, title, videoReference: video || null }) }); setTitle(""); setVideo(""); await load() }}>
+        <Field label={lang === "ar" ? "درس" : "Lesson"} value={title} onChange={(e) => setTitle(e.target.value)} />
+        <Field label={lang === "ar" ? "مرجع الفيديو" : "Video reference"} value={video} onChange={(e) => setVideo(e.target.value)} />
+        <button className="btn" type="submit">{lang === "ar" ? "إضافة" : "Add"}</button>
       </form>
     </section>
   )
@@ -181,47 +214,79 @@ function Summaries() {
   const { lang } = useI18n()
   const [title, setTitle] = useState("")
   const [body, setBody] = useState("")
+  const [tick, setTick] = useState(0)
   return (
-    <div className="space-y-4">
-      <form className="grid gap-2 panel p-4" onSubmit={async (event) => { event.preventDefault(); await api("/api/teacher/summaries", { method: "POST", body: JSON.stringify({ title, body }) }); setTitle(""); setBody("") }}>
-        <TextField label={lang === "ar" ? "العنوان" : "Title"} value={title} onChange={(e) => setTitle(e.target.value)} />
-        <TextField label={lang === "ar" ? "النص" : "Body"} value={body} onChange={(e) => setBody(e.target.value)} />
-        <Button type="submit" variant="contained">{lang === "ar" ? "حفظ الملخص" : "Save summary"}</Button>
+    <div className="page">
+      <Mast title={lang === "ar" ? "الملخصات" : "Summaries"} />
+      <form className="sheet stack" onSubmit={async (event) => { event.preventDefault(); await api("/api/teacher/summaries", { method: "POST", body: JSON.stringify({ title, body }) }); setTitle(""); setBody(""); setTick((value) => value + 1) }}>
+        <Field label={lang === "ar" ? "العنوان" : "Title"} value={title} onChange={(e) => setTitle(e.target.value)} />
+        <Area label={lang === "ar" ? "النص" : "Body"} value={body} onChange={(e) => setBody(e.target.value)} />
+        <button className="btn" type="submit">{lang === "ar" ? "حفظ الملخص" : "Save summary"}</button>
       </form>
-      <Resource path="/api/teacher/summaries" title={lang === "ar" ? "الملخصات" : "Summaries"} columns={[{ key: "title", label: lang === "ar" ? "العنوان" : "Title" }]} />
+      <Resource key={tick} path="/api/teacher/summaries" title={lang === "ar" ? "المحفوظ" : "Saved"} columns={[{ key: "title", label: lang === "ar" ? "العنوان" : "Title" }]} />
     </div>
   )
 }
 
 function Exams() {
   const { lang } = useI18n()
+  const [courses, setCourses] = useState<Row[]>([])
+  const [chapters, setChapters] = useState<Row[]>([])
+  const [lessons, setLessons] = useState<Row[]>([])
+  const [groups, setGroups] = useState<Row[]>([])
   const [courseId, setCourseId] = useState("")
   const [chapterId, setChapterId] = useState("")
   const [lessonId, setLessonId] = useState("")
   const [title, setTitle] = useState("")
   const [mark, setMark] = useState(100)
   const [endDate, setEndDate] = useState("")
-  const [groupIds, setGroupIds] = useState("")
+  const [groupIds, setGroupIds] = useState<string[]>([])
   const [revision, setRevision] = useState(0)
+  useEffect(() => { api<{ items: Row[] }>("/api/teacher/courses").then((page) => setCourses(page.items ?? [])).catch(() => setCourses([])) }, [])
+  useEffect(() => {
+    api<Row[] | { items: Row[] }>("/api/teacher/groups").then((data) => setGroups(Array.isArray(data) ? data : data.items ?? [])).catch(() => setGroups([]))
+  }, [])
+  useEffect(() => {
+    if (!courseId) { setChapters([]); return }
+    api<Row[]>(`/api/teacher/courses/${courseId}/chapters`).then(setChapters).catch(() => setChapters([]))
+  }, [courseId])
+  useEffect(() => {
+    if (!chapterId) { setLessons([]); return }
+    api<Row[]>(`/api/teacher/chapters/${chapterId}/lessons`).then(setLessons).catch(() => setLessons([]))
+  }, [chapterId])
   const query = new URLSearchParams()
   if (courseId) query.set("courseId", courseId)
   if (chapterId) query.set("chapterId", chapterId)
   if (lessonId) query.set("lessonId", lessonId)
   return (
-    <div className="space-y-4">
-      <form className="grid gap-2 panel p-4 md:grid-cols-2" onSubmit={async (event) => {
+    <div className="page">
+      <Mast title={lang === "ar" ? "الاختبارات" : "Exams"} />
+      <form className="sheet form-grid" onSubmit={async (event) => {
         event.preventDefault()
-        await api("/api/teacher/exams", { method: "POST", body: JSON.stringify({ title, mark, endDate: new Date(endDate).toISOString(), courseId: courseId || null, chapterId: chapterId || null, lessonId: lessonId || null, groupIds: groupIds.split(",").map((item) => item.trim()).filter(Boolean) }) })
+        await api("/api/teacher/exams", { method: "POST", body: JSON.stringify({ title, mark, endDate: new Date(endDate).toISOString(), courseId: courseId || null, chapterId: chapterId || null, lessonId: lessonId || null, groupIds }) })
         setRevision((value) => value + 1)
       }}>
-        <TextField label={lang === "ar" ? "عنوان الاختبار" : "Exam title"} value={title} onChange={(e) => setTitle(e.target.value)} />
-        <TextField type="number" label={lang === "ar" ? "الدرجة، حد 100" : "Mark, max 100"} value={mark} onChange={(e) => setMark(Number(e.target.value))} />
-        <TextField type="datetime-local" label={lang === "ar" ? "تاريخ الانتهاء" : "End"} value={endDate} onChange={(e) => setEndDate(e.target.value)} InputLabelProps={{ shrink: true }} />
-        <TextField label={lang === "ar" ? "معرف الدورة" : "Course id"} value={courseId} onChange={(e) => setCourseId(e.target.value)} />
-        <TextField label={lang === "ar" ? "معرف الفصل" : "Chapter id"} value={chapterId} onChange={(e) => setChapterId(e.target.value)} />
-        <TextField label={lang === "ar" ? "معرف الدرس" : "Lesson id"} value={lessonId} onChange={(e) => setLessonId(e.target.value)} />
-        <TextField label={lang === "ar" ? "المجموعات، مفصولة بفاصلة" : "Group ids, comma separated"} value={groupIds} onChange={(e) => setGroupIds(e.target.value)} />
-        <Button type="submit" variant="contained">{lang === "ar" ? "حفظ الاختبار" : "Save exam"}</Button>
+        <Field label={lang === "ar" ? "عنوان الاختبار" : "Exam title"} value={title} onChange={(e) => setTitle(e.target.value)} />
+        <Field type="number" label={lang === "ar" ? "الدرجة، حد 100" : "Mark, max 100"} value={mark} onChange={(e) => setMark(Number(e.target.value))} />
+        <Field type="datetime-local" label={lang === "ar" ? "تاريخ الانتهاء" : "End"} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+        <SelectField label={lang === "ar" ? "الدورة" : "Course"} value={courseId} onChange={(value) => { setCourseId(value); setChapterId(""); setLessonId("") }} options={[{ value: "", label: "—" }, ...courses.map((row) => ({ value: row.id, label: row.title }))]} />
+        <SelectField label={lang === "ar" ? "الفصل" : "Chapter"} value={chapterId} onChange={(value) => { setChapterId(value); setLessonId("") }} options={[{ value: "", label: "—" }, ...chapters.map((row) => ({ value: row.id, label: row.title }))]} />
+        <SelectField label={lang === "ar" ? "الدرس" : "Lesson"} value={lessonId} onChange={setLessonId} options={[{ value: "", label: "—" }, ...lessons.map((row) => ({ value: row.id, label: row.title }))]} />
+        <div className="span-2">
+          <p className="lede">{lang === "ar" ? "المجموعات" : "Groups"}</p>
+          <div className="perm-grid">
+            {groups.map((row) => {
+              const on = groupIds.includes(row.id)
+              return (
+                <label key={row.id} className={on ? "perm on" : "perm"}>
+                  <input type="checkbox" checked={on} onChange={() => setGroupIds(on ? groupIds.filter((item) => item !== row.id) : [...groupIds, row.id])} />
+                  <span>{row.name}</span>
+                </label>
+              )
+            })}
+          </div>
+        </div>
+        <button className="btn" type="submit">{lang === "ar" ? "حفظ الاختبار" : "Save exam"}</button>
       </form>
       <ExamLinks query={`${query.toString()}&revision=${revision}`} />
     </div>
@@ -245,9 +310,9 @@ function ExamDesk() {
   async function load() { setQuestions(await api(`/api/teacher/exams/${id}/questions`)) }
   useEffect(() => { void load() }, [id])
   return (
-    <div className="space-y-4">
-      <Button onClick={() => download(`/api/teacher/exams/${id}/codes/export`, "tovi-codes.xlsx")}>{lang === "ar" ? "تنزيل أكواد الاختبار" : "Download exam codes"}</Button>
-      <form className="grid gap-2 panel p-4" onSubmit={async (event) => {
+    <div className="page">
+      <Mast title={lang === "ar" ? "أسئلة الاختبار" : "Exam questions"} action={<button className="ghost" type="button" onClick={() => download(`/api/teacher/exams/${id}/codes/export`, "tovi-codes.xlsx")}>{lang === "ar" ? "تنزيل أكواد الاختبار" : "Download exam codes"}</button>} />
+      <form className="sheet stack" onSubmit={async (event) => {
         event.preventDefault()
         const body: Record<string, unknown> = { type, text, mark }
         if (type === "TrueFalse") body.correct = correct === "true"
@@ -255,20 +320,17 @@ function ExamDesk() {
         await api(`/api/teacher/exams/${id}/questions`, { method: "POST", body: JSON.stringify(body) })
         await load()
       }}>
-        <TextField select label={lang === "ar" ? "النوع" : "Type"} value={type} onChange={(e) => setType(e.target.value)} SelectProps={{ native: true }}>
-          <option value="OpenEnded">OpenEnded</option>
-          <option value="MultipleChoice">MultipleChoice</option>
-          <option value="TrueFalse">TrueFalse</option>
-        </TextField>
-        <TextField label={lang === "ar" ? "نص السؤال" : "Question"} value={text} onChange={(e) => setText(e.target.value)} />
-        <TextField type="number" label={lang === "ar" ? "درجة السؤال، حد 100" : "Question mark, max 100"} value={mark} onChange={(e) => setMark(Number(e.target.value))} />
-        {type === "TrueFalse" ? <TextField select label={lang === "ar" ? "الصحيح" : "Correct"} value={correct} onChange={(e) => setCorrect(e.target.value)} SelectProps={{ native: true }}><option value="true">true</option><option value="false">false</option></TextField> : null}
-        <Button type="submit" variant="contained">{lang === "ar" ? "إضافة سؤال" : "Add question"}</Button>
+        <SelectField label={lang === "ar" ? "النوع" : "Type"} value={type} onChange={setType} options={[{ value: "OpenEnded", label: "OpenEnded" }, { value: "MultipleChoice", label: "MultipleChoice" }, { value: "TrueFalse", label: "TrueFalse" }]} />
+        <Area label={lang === "ar" ? "نص السؤال" : "Question"} value={text} onChange={(e) => setText(e.target.value)} />
+        <Field type="number" label={lang === "ar" ? "درجة السؤال، حد 100" : "Question mark, max 100"} value={mark} onChange={(e) => setMark(Number(e.target.value))} />
+        {type === "TrueFalse" ? <SelectField label={lang === "ar" ? "الصحيح" : "Correct"} value={correct} onChange={setCorrect} options={[{ value: "true", label: "true" }, { value: "false", label: "false" }]} /> : null}
+        {type === "MultipleChoice" ? <p className="lede">{lang === "ar" ? "يُحفظ خياران: أ صحيح، وب غير صحيح." : "Two options are saved: أ is correct, ب is not."}</p> : null}
+        <button className="btn" type="submit">{lang === "ar" ? "إضافة سؤال" : "Add question"}</button>
       </form>
       {questions.map((question) => (
         <article key={question.id} className="record">
           <span>{question.text} · {question.type} · {question.mark}</span>
-          <Button color="error" onClick={async () => { await api(`/api/teacher/questions/${question.id}`, { method: "DELETE" }); await load() }}>{lang === "ar" ? "حذف" : "Delete"}</Button>
+          <button className="danger" type="button" onClick={async () => { await api(`/api/teacher/questions/${question.id}`, { method: "DELETE" }); await load() }}>{lang === "ar" ? "حذف" : "Delete"}</button>
         </article>
       ))}
     </div>
@@ -278,13 +340,15 @@ function ExamDesk() {
 function Groups() {
   const { lang } = useI18n()
   const [name, setName] = useState("")
+  const [tick, setTick] = useState(0)
   return (
-    <div className="space-y-4">
-      <form className="flex gap-2" onSubmit={async (event) => { event.preventDefault(); await api("/api/teacher/groups", { method: "POST", body: JSON.stringify({ name }) }) }}>
-        <TextField label={lang === "ar" ? "اسم المجموعة" : "Group"} value={name} onChange={(e) => setName(e.target.value)} />
-        <Button type="submit" variant="contained">{lang === "ar" ? "إنشاء" : "Create"}</Button>
+    <div className="page">
+      <Mast title={lang === "ar" ? "المجموعات" : "Groups"} />
+      <form className="composer inline" onSubmit={async (event) => { event.preventDefault(); await api("/api/teacher/groups", { method: "POST", body: JSON.stringify({ name }) }); setName(""); setTick((value) => value + 1) }}>
+        <Field label={lang === "ar" ? "اسم المجموعة" : "Group"} value={name} onChange={(e) => setName(e.target.value)} />
+        <button className="btn" type="submit">{lang === "ar" ? "إنشاء" : "Create"}</button>
       </form>
-      <Resource path="/api/teacher/groups" title={lang === "ar" ? "المجموعات" : "Groups"} columns={[{ key: "name", label: lang === "ar" ? "الاسم" : "Name" }]} />
+      <Resource key={tick} path="/api/teacher/groups" title={lang === "ar" ? "المجموعات" : "Groups"} columns={[{ key: "name", label: lang === "ar" ? "الاسم" : "Name" }]} />
     </div>
   )
 }
@@ -294,9 +358,11 @@ function Staff() {
   const [form, setForm] = useState({ firstName: "", lastName: "", phone: "", password: "", style: "Assistant", groupName: "" })
   const [selected, setSelected] = useState<string[]>([])
   const [message, setMessage] = useState("")
+  const [tick, setTick] = useState(0)
   return (
-    <div className="space-y-4">
-      <form className="grid gap-3 panel p-4" onSubmit={async (event) => {
+    <div className="page">
+      <Mast title={lang === "ar" ? "المساعدون والموظفون" : "Assistants and staff"} />
+      <form className="sheet stack" onSubmit={async (event) => {
         event.preventDefault()
         let groupId: string | undefined
         if (form.style === "Staff") {
@@ -305,30 +371,21 @@ function Staff() {
         }
         await api("/api/teacher/employees", { method: "POST", body: JSON.stringify({ ...form, style: form.style, permissions: form.style === "Assistant" ? selected : [], groupId }) })
         setMessage(lang === "ar" ? "تم إنشاء الحساب والصلاحيات على الخادم" : "Account and permissions were saved on the server")
+        setTick((value) => value + 1)
       }}>
-        <div className="grid gap-2 md:grid-cols-2">
-          <TextField label={lang === "ar" ? "الاسم" : "First"} value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
-          <TextField label={lang === "ar" ? "اللقب" : "Last"} value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
-          <TextField label={lang === "ar" ? "الهاتف" : "Phone"} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-          <TextField type="password" label={lang === "ar" ? "كلمة المرور" : "Password"} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-          <TextField select label={lang === "ar" ? "النوع" : "Style"} value={form.style} onChange={(e) => setForm({ ...form, style: e.target.value })} SelectProps={{ native: true }}>
-            <option value="Assistant">{lang === "ar" ? "مساعد" : "Assistant"}</option>
-            <option value="Staff">{lang === "ar" ? "موظف" : "Employee"}</option>
-          </TextField>
-          {form.style === "Staff" ? <TextField label={lang === "ar" ? "اسم مجموعة الصلاحيات" : "Permission group"} value={form.groupName} onChange={(e) => setForm({ ...form, groupName: e.target.value })} /> : null}
+        <div className="form-grid">
+          <Field label={lang === "ar" ? "الاسم" : "First"} value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
+          <Field label={lang === "ar" ? "اللقب" : "Last"} value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
+          <Field label={lang === "ar" ? "الهاتف" : "Phone"} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+          <Field type="password" label={lang === "ar" ? "كلمة المرور" : "Password"} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} autoComplete="new-password" />
+          <SelectField label={lang === "ar" ? "النوع" : "Style"} value={form.style} onChange={(value) => setForm({ ...form, style: value })} options={[{ value: "Assistant", label: lang === "ar" ? "مساعد" : "Assistant" }, { value: "Staff", label: lang === "ar" ? "موظف" : "Employee" }]} />
+          {form.style === "Staff" ? <Field label={lang === "ar" ? "اسم مجموعة الصلاحيات" : "Permission group"} value={form.groupName} onChange={(e) => setForm({ ...form, groupName: e.target.value })} /> : null}
         </div>
-        <div className="grid max-h-64 gap-1 overflow-auto sm:grid-cols-2">
-          {teacherPermissions.map((slug) => (
-            <label key={slug} className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={selected.includes(slug)} onChange={() => setSelected((list) => list.includes(slug) ? list.filter((item) => item !== slug) : [...list, slug])} />
-              {slug}
-            </label>
-          ))}
-        </div>
-        <Button type="submit" variant="contained">{lang === "ar" ? "حفظ" : "Save"}</Button>
-        {message ? <Alert severity="success">{message}</Alert> : null}
+        <PermissionPicker slugs={teacherPermissions} selected={selected} onChange={setSelected} lang={lang} />
+        <button className="btn" type="submit">{lang === "ar" ? "حفظ" : "Save"}</button>
+        {message ? <Callout tone="ok">{message}</Callout> : null}
       </form>
-      <Resource path="/api/teacher/employees" title={lang === "ar" ? "الموظفون" : "Employees"} columns={[{ key: "firstName", label: lang === "ar" ? "الاسم" : "Name" }, { key: "phone", label: lang === "ar" ? "الهاتف" : "Phone" }, { key: "employeeStyle", label: lang === "ar" ? "النوع" : "Style" }]} />
+      <Resource key={tick} path="/api/teacher/employees" title={lang === "ar" ? "الموظفون" : "Employees"} columns={[{ key: "firstName", label: lang === "ar" ? "الاسم" : "Name" }, { key: "phone", label: lang === "ar" ? "الهاتف" : "Phone" }, { key: "employeeStyle", label: lang === "ar" ? "النوع" : "Style" }]} />
     </div>
   )
 }
@@ -338,24 +395,31 @@ function Classrooms() {
   const [title, setTitle] = useState("")
   const [code, setCode] = useState("")
   const [message, setMessage] = useState("")
+  const [tick, setTick] = useState(0)
   return (
-    <div className="space-y-4">
-      <form className="flex gap-2" onSubmit={async (event) => { event.preventDefault(); await api("/api/teacher/classrooms", { method: "POST", body: JSON.stringify({ title }) }) }}>
-        <TextField label={lang === "ar" ? "قاعة جديدة" : "New classroom"} value={title} onChange={(e) => setTitle(e.target.value)} />
-        <Button type="submit" variant="contained">{lang === "ar" ? "فتح" : "Open"}</Button>
-      </form>
-      <form className="flex gap-2" onSubmit={async (event) => { event.preventDefault(); await api("/api/teacher/hour-packages/redeem", { method: "POST", body: JSON.stringify({ code }) }); setMessage(lang === "ar" ? "تم تفعيل باقة الساعات" : "Hour package activated") }}>
-        <TextField label={lang === "ar" ? "كود باقة الساعات" : "Hour package code"} value={code} onChange={(e) => setCode(e.target.value)} />
-        <Button type="submit">{lang === "ar" ? "تفعيل" : "Redeem"}</Button>
-        {message ? <Alert severity="success">{message}</Alert> : null}
-      </form>
-      <Resource path="/api/teacher/classrooms" title={lang === "ar" ? "القاعات" : "Classrooms"} columns={[{ key: "title", label: lang === "ar" ? "العنوان" : "Title" }, { key: "status", label: lang === "ar" ? "الحالة" : "Status" }]} />
+    <div className="page">
+      <Mast title={lang === "ar" ? "القاعات" : "Classrooms"} />
+      <div className="split">
+        <form className="sheet stack" onSubmit={async (event) => { event.preventDefault(); await api("/api/teacher/classrooms", { method: "POST", body: JSON.stringify({ title }) }); setTitle(""); setTick((value) => value + 1) }}>
+          <h2>{lang === "ar" ? "قاعة جديدة" : "New classroom"}</h2>
+          <Field label={lang === "ar" ? "العنوان" : "Title"} value={title} onChange={(e) => setTitle(e.target.value)} />
+          <button className="btn" type="submit">{lang === "ar" ? "فتح" : "Open"}</button>
+        </form>
+        <form className="sheet stack" onSubmit={async (event) => { event.preventDefault(); await api("/api/teacher/hour-packages/redeem", { method: "POST", body: JSON.stringify({ code }) }); setMessage(lang === "ar" ? "تم تفعيل باقة الساعات" : "Hour package activated") }}>
+          <h2>{lang === "ar" ? "باقة الساعات" : "Hour package"}</h2>
+          <Field label={lang === "ar" ? "كود باقة الساعات" : "Hour package code"} value={code} onChange={(e) => setCode(e.target.value)} />
+          <button className="btn" type="submit">{lang === "ar" ? "تفعيل" : "Redeem"}</button>
+          {message ? <Callout tone="ok">{message}</Callout> : null}
+        </form>
+      </div>
+      <Resource key={tick} path="/api/teacher/classrooms" title={lang === "ar" ? "القاعات" : "Classrooms"} columns={[{ key: "title", label: lang === "ar" ? "العنوان" : "Title" }, { key: "status", label: lang === "ar" ? "الحالة" : "Status" }]} />
     </div>
   )
 }
 
 function Sessions() {
   const { lang } = useI18n()
+  const [classrooms, setClassrooms] = useState<Row[]>([])
   const [classroomId, setClassroomId] = useState("")
   const [startsAt, setStartsAt] = useState("")
   const [duration, setDuration] = useState(60)
@@ -363,9 +427,11 @@ function Sessions() {
   const [error, setError] = useState("")
   async function load() { setRows(await api("/api/teacher/sessions")) }
   useEffect(() => { void load() }, [])
+  useEffect(() => { api<Row[] | { items: Row[] }>("/api/teacher/classrooms").then((data) => setClassrooms(Array.isArray(data) ? data : data.items ?? [])).catch(() => setClassrooms([])) }, [])
   return (
-    <div className="space-y-4">
-      <form className="grid gap-2 panel p-4 md:grid-cols-2" onSubmit={async (event) => {
+    <div className="page">
+      <Mast title={lang === "ar" ? "الجلسات" : "Sessions"} lede={lang === "ar" ? "الجدولة تخصم المدة كاملة، والإلغاء لا يعيد الرصيد." : "Scheduling deducts the full duration. Cancelling does not refund it."} />
+      <form className="sheet form-grid" onSubmit={async (event) => {
         event.preventDefault()
         setError("")
         try {
@@ -373,23 +439,23 @@ function Sessions() {
           await load()
         } catch (reason) { setError(reason instanceof Error ? reason.message : "") }
       }}>
-        <TextField label={lang === "ar" ? "معرف القاعة" : "Classroom id"} value={classroomId} onChange={(e) => setClassroomId(e.target.value)} />
-        <TextField type="datetime-local" label={lang === "ar" ? "البداية" : "Starts"} value={startsAt} onChange={(e) => setStartsAt(e.target.value)} InputLabelProps={{ shrink: true }} />
-        <TextField select label={lang === "ar" ? "المدة" : "Duration"} value={duration} onChange={(e) => setDuration(Number(e.target.value))} SelectProps={{ native: true }}>
-          {[30, 45, 60, 90, 120].map((minutes) => <option key={minutes} value={minutes}>{minutes}</option>)}
-        </TextField>
-        <Button type="submit" variant="contained">{lang === "ar" ? "جدولة وخصم المدة كاملة" : "Schedule and deduct the full duration"}</Button>
-        {error ? <Alert severity="error">{error}</Alert> : null}
+        <SelectField label={lang === "ar" ? "القاعة" : "Classroom"} value={classroomId} onChange={setClassroomId} options={[{ value: "", label: "—" }, ...classrooms.map((row) => ({ value: row.id, label: row.title || row.id }))]} />
+        <Field type="datetime-local" label={lang === "ar" ? "البداية" : "Starts"} value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
+        <SelectField label={lang === "ar" ? "المدة" : "Duration"} value={String(duration)} onChange={(value) => setDuration(Number(value))} options={[30, 45, 60, 90, 120].map((minutes) => ({ value: String(minutes), label: String(minutes) }))} />
+        <button className="btn" type="submit">{lang === "ar" ? "جدولة وخصم المدة كاملة" : "Schedule and deduct the full duration"}</button>
+        {error ? <Callout tone="bad">{error}</Callout> : null}
       </form>
-      {rows.map((row) => (
-        <article key={row.id} className="record">
-          <span>{row.startsAt} · {row.durationMinutes} · {row.status}</span>
-          <span className="flex gap-2">
-            <Link className="btn" to={`/meetings/${row.id}`}>{lang === "ar" ? "دخول الحصة" : "Enter meeting"}</Link>
-            <Button onClick={async () => { await api(`/api/teacher/sessions/${row.id}/cancel`, { method: "POST" }); await load() }}>{lang === "ar" ? "إلغاء بلا استرجاع" : "Cancel, no refund"}</Button>
-          </span>
-        </article>
-      ))}
+      <section className="sheet">
+        {rows.map((row) => (
+          <article key={row.id} className="record">
+            <span>{row.startsAt} · {row.durationMinutes} · <StatusText value={String(row.status ?? "")} lang={lang} /></span>
+            <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Link className="btn" to={`/meetings/${row.id}`}>{lang === "ar" ? "دخول الحصة" : "Enter meeting"}</Link>
+              <button className="ghost" type="button" onClick={async () => { await api(`/api/teacher/sessions/${row.id}/cancel`, { method: "POST" }); await load() }}>{lang === "ar" ? "إلغاء بلا استرجاع" : "Cancel, no refund"}</button>
+            </span>
+          </article>
+        ))}
+      </section>
     </div>
   )
 }
@@ -405,17 +471,18 @@ function Plans({ me }: { me: SessionUser }) {
   const [url, setUrl] = useState("")
   useEffect(() => { api<Row[]>("/api/teacher/plans").then(setPlans).catch(() => setPlans([])) }, [])
   return (
-    <div className="space-y-3">
+    <div className="page">
+      <Mast title={lang === "ar" ? "الباقات" : "Plans"} />
       {plans.map((plan) => (
-        <article key={plan.id} className="flex flex-wrap items-center justify-between gap-3 panel p-4">
+        <article key={plan.id} className="sheet" style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
           <div>
-            <h2 className="font-bold">{plan.title}</h2>
+            <h2>{plan.title}</h2>
             <p className="lede">{plan.priceYearly} IQD · {plan.codesCount}</p>
           </div>
-          <Button variant="contained" onClick={async () => {
+          <button className="btn" type="button" onClick={async () => {
             const result = await api<{ paymentUrl: string }>("/api/teacher/subscriptions", { method: "POST", body: JSON.stringify({ userId: me.ownerId, planId: plan.id }) })
             setUrl(result.paymentUrl)
-          }}>{lang === "ar" ? "الدفع عبر البوابة" : "Pay through the gateway"}</Button>
+          }}>{lang === "ar" ? "الدفع عبر البوابة" : "Pay through the gateway"}</button>
         </article>
       ))}
       {url ? <a className="auth-link" href={url}>{url}</a> : null}
@@ -429,9 +496,14 @@ function Chat() {
   const [rows, setRows] = useState<Row[]>([])
   useEffect(() => { api<Row[]>("/api/teacher/sessions").then(setRows).catch(() => setRows([])) }, [])
   return (
-    <section className="panel p-4">
+    <section className="sheet">
       <Mast title={lang === "ar" ? "غرف المحادثة" : "Chat rooms"} lede={lang === "ar" ? "كل غرفة مربوطة بالجلسة وبيئة التشغيل. بناء التطوير لا يكتب في غرف الإنتاج." : "Each room is bound to its session and environment. A development build does not write into production rooms."} />
-      {rows.map((row) => <Link key={row.id} className="block border-b py-3" to={`/meetings/${row.id}`}>{row.id}</Link>)}
+      {rows.map((row) => (
+        <Link key={row.id} className="record" to={`/meetings/${row.id}`}>
+          <span>{row.startsAt || row.id}{row.durationMinutes ? ` · ${row.durationMinutes}` : ""}</span>
+          <StatusText value={String(row.status ?? "")} lang={lang} />
+        </Link>
+      ))}
     </section>
   )
 }
@@ -442,13 +514,14 @@ function Profile() {
   const [message, setMessage] = useState("")
   useEffect(() => { api<typeof form>("/api/teacher/profile").then((user) => setForm({ firstName: user.firstName ?? "", lastName: user.lastName ?? "", address: user.address ?? "", description: user.description ?? "" })) }, [])
   return (
-    <form className="grid max-w-xl gap-3 panel p-4" onSubmit={async (event) => { event.preventDefault(); await api("/api/teacher/profile", { method: "PUT", body: JSON.stringify(form) }); setMessage(lang === "ar" ? "تم الحفظ" : "Saved") }}>
-      <TextField label={lang === "ar" ? "الاسم" : "First"} value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
-      <TextField label={lang === "ar" ? "اللقب" : "Last"} value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
-      <TextField label={lang === "ar" ? "العنوان" : "Address"} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
-      <TextField label={lang === "ar" ? "الوصف" : "Description"} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-      <Button type="submit" variant="contained">{lang === "ar" ? "حفظ" : "Save"}</Button>
-      {message ? <Alert severity="success">{message}</Alert> : null}
+    <form className="sheet stack" style={{ maxWidth: 640 }} onSubmit={async (event) => { event.preventDefault(); await api("/api/teacher/profile", { method: "PUT", body: JSON.stringify(form) }); setMessage(lang === "ar" ? "تم الحفظ" : "Saved") }}>
+      <Mast title={lang === "ar" ? "الملف" : "Profile"} />
+      <Field label={lang === "ar" ? "الاسم" : "First"} value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
+      <Field label={lang === "ar" ? "اللقب" : "Last"} value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
+      <Field label={lang === "ar" ? "العنوان" : "Address"} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+      <Area label={lang === "ar" ? "الوصف" : "Description"} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+      <button className="btn" type="submit">{lang === "ar" ? "حفظ" : "Save"}</button>
+      {message ? <Callout tone="ok">{message}</Callout> : null}
     </form>
   )
 }

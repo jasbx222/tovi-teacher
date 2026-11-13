@@ -34,20 +34,30 @@ function Glyph({ name }: { name: string }) {
   )
 }
 
+export function Mark() {
+  return (
+    <svg className="mark-svg" viewBox="0 0 36 36" aria-hidden="true">
+      <rect width="36" height="36" rx="11" fill="#3d45c6" />
+      <path d="M10 12h16M18 12v14" stroke="#f5f7fb" strokeWidth="2.2" strokeLinecap="round" />
+      <circle cx="26" cy="26" r="2.4" fill="#e7b089" />
+    </svg>
+  )
+}
+
 export function Shell({ title, items, children }: { title: string; items: NavItem[]; children: React.ReactNode }) {
   const { t, lang, toggle } = useI18n()
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
   const reduce = useReducedMotion()
-  const current = items.find((item) => item.to === location.pathname) ?? items[0]
+  const room = location.pathname.includes("/meetings/")
   let lastGroup = ""
   return (
     <div className="tovi-app">
       {open ? <button className="scrim" aria-label={t.close} onClick={() => setOpen(false)} /> : null}
       <aside className={open ? "tovi-side open" : "tovi-side"}>
         <div className="brand">
-          <div className="mark">T</div>
+          <Mark />
           <div><strong>{t.brand}</strong><span>{title}</span></div>
         </div>
         <div className="side-scroll">
@@ -68,26 +78,26 @@ export function Shell({ title, items, children }: { title: string; items: NavIte
           })}
         </div>
         <div className="side-foot">
-          <button className="lang" onClick={toggle}>{t.language}</button>
-          <button className="ghost" onClick={() => { setToken(""); navigate("/login") }}>{t.logout}</button>
+          <button className="lang" type="button" onClick={toggle}>{t.language}</button>
+          <button className="ghost" type="button" onClick={() => { setToken(""); navigate("/login") }}>{t.logout}</button>
         </div>
       </aside>
       <div className="tovi-main">
         <header className="tovi-top">
-          <button className="menu-btn ghost" onClick={() => setOpen(true)}>{t.menu}</button>
-          <div>
-            <h1>{current ? (lang === "ar" ? current.ar : current.en) : title}</h1>
-            <p>{title}</p>
+          <button className="menu-btn ghost" type="button" onClick={() => setOpen(true)}>{t.menu}</button>
+          <span className="top-kicker">{title}</span>
+          <div className="top-actions">
+            <button className="lang" type="button" onClick={toggle}>{t.language}</button>
           </div>
         </header>
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}
-            className="tovi-content"
+            className={room ? "tovi-content room" : "tovi-content"}
             initial={reduce ? false : { opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={reduce ? undefined : { opacity: 0, y: -6 }}
-            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
           >
             {children}
           </motion.div>
@@ -101,20 +111,18 @@ export function AuthLayout({ title, children }: { title: string; children: React
   const { t, toggle } = useI18n()
   return (
     <div className="auth">
-      <aside className="auth-panel">
-        <div className="mark">T</div>
-        <div>
-          <h2>{t.brand}</h2>
-          <p>{t.tagline}</p>
-        </div>
-        <button className="lang" onClick={toggle} style={{ alignSelf: "flex-start", color: "#f6f1e7", borderColor: "#4a453e" }}>{t.language}</button>
-      </aside>
-      <main className="auth-main">
-        <div className="auth-card">
+      <div className="auth-stage">
+        <main className="auth-card">
+          <div className="auth-head">
+            <Mark />
+            <button className="lang" type="button" onClick={toggle}>{t.language}</button>
+          </div>
+          <p className="auth-brand">{t.brand}</p>
           <h1>{title}</h1>
+          <p className="lede">{t.tagline}</p>
           {children}
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   )
 }
@@ -126,19 +134,18 @@ export function LoginCard({ title, onSubmit, extra }: { title: string; onSubmit:
   const [error, setError] = useState("")
   return (
     <AuthLayout title={title}>
-      <p className="lede">{t.tagline}</p>
       <form onSubmit={async (event) => {
         event.preventDefault()
         setError("")
         try { await onSubmit(phone, password) } catch (reason) { setError(reason instanceof Error ? reason.message : t.error) }
       }}>
         <label className="field">{t.phone}
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="username" />
+          <input value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="username" inputMode="tel" />
         </label>
         <label className="field">{t.password}
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
         </label>
-        {error ? <p className="form-error">{error}</p> : null}
+        {error ? <p className="form-error" role="alert">{error}</p> : null}
         <button className="btn" type="submit">{t.login}</button>
         {extra}
       </form>
