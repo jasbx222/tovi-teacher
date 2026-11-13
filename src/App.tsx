@@ -10,6 +10,8 @@ import { SessionLine, sessionPhase, type SessionRow } from "../shared/src/sessio
 import { PlanetHero } from "../shared/src/vivid"
 import { StatGrid, type Stat } from "../shared/src/stats"
 import { LoginCard, Shell, type NavItem } from "../shared/src/shell"
+import { FormModal, PageHeader, useToast } from "../shared/src/crud"
+import { CountChart } from "../shared/src/charts"
 import { Area, Callout, CourseCards, Field, Mast, MetricBand, PermissionPicker, SelectField, StatusText } from "../shared/src/ui"
 
 const nav: (NavItem & { permission?: string })[] = [
@@ -51,7 +53,7 @@ function Frame() {
   if (!me) return <div className="boot" role="status" aria-label={lang === "ar" ? "جار التحميل" : "Loading"}><div className="skel" /><div className="skel" /><div className="skel short" /></div>
   const items = nav.filter((item) => !item.permission || me.permissions.includes(item.permission))
   return (
-    <Shell title={lang === "ar" ? "المعلم" : "Teacher"} items={items}>
+    <Shell title={lang === "ar" ? "المعلم" : "Teacher"} items={items} user={{ name: me.name, phone: me.phone }}>
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/courses" element={<Courses />} />
@@ -60,7 +62,7 @@ function Frame() {
         <Route path="/exams" element={<Exams />} />
         <Route path="/exams/:id" element={<ExamDesk />} />
         <Route path="/groups" element={<Groups />} />
-        <Route path="/students" element={<Resource path="/api/teacher/students" title={lang === "ar" ? "الطلاب" : "Students"} columns={[{ key: "firstName", label: lang === "ar" ? "الاسم" : "Name" }, { key: "phone", label: lang === "ar" ? "الهاتف" : "Phone" }, { key: "xp", label: lang === "ar" ? "النقاط" : "XP" }, { key: "streak", label: lang === "ar" ? "السلسلة (يوم)" : "Streak (days)" }]} />} />
+        <Route path="/students" element={<Resource path="/api/teacher/students" title={lang === "ar" ? "الطلاب" : "Students"} image="photoFileId" columns={[{ key: "firstName", label: lang === "ar" ? "الاسم" : "Name", value: (row) => [row.firstName, row.lastName].filter(Boolean).join(" ") }, { key: "phone", label: lang === "ar" ? "الهاتف" : "Phone" }, { key: "xp", label: lang === "ar" ? "النقاط" : "XP" }, { key: "streak", label: lang === "ar" ? "السلسلة (يوم)" : "Streak (days)" }]} />} />
         <Route path="/assistants" element={<Staff />} />
         <Route path="/classrooms" element={<Classrooms />} />
         <Route path="/sessions" element={<Sessions />} />
@@ -94,6 +96,14 @@ function Home() {
         <NextLive rows={sessions} />
       </PlanetHero>
       <StatGrid items={teacherStats(lang === "ar", data, courses.length, sessions)} />
+      <div className="board-split">
+        <CountChart title={lang === "ar" ? "نشاط الاستوديو" : "Studio activity"} items={[
+          { label: lang === "ar" ? "الدورات" : "Courses", value: courses.length },
+          { label: lang === "ar" ? "الحصص" : "Sessions", value: sessions.length },
+          { label: lang === "ar" ? "طلاب الشهر" : "Students", value: data.monthlyStudents },
+          { label: lang === "ar" ? "رصيد الأكواد" : "Codes", value: data.codeBalance },
+        ]} />
+      </div>
       {courses.length > 0 ? (
         <section className="stack">
           <Mast title={lang === "ar" ? "الدورات" : "Courses"} />
@@ -138,24 +148,21 @@ function NextLive({ rows }: { rows: SessionRow[] }) {
 
 function Courses() {
   const { lang } = useI18n()
-  const [title, setTitle] = useState("")
-  const [error, setError] = useState("")
-  const [tick, setTick] = useState(0)
   return (
-    <div className="page">
-      <Mast title={lang === "ar" ? "الدورات" : "Courses"} lede={lang === "ar" ? "أنشئ الدورة ثم افتحها لترتيب الفصول والدروس." : "Create a course, then open it to arrange chapters and lessons."} />
-      <form className="composer inline" onSubmit={async (event) => {
-        event.preventDefault()
-        setError("")
-        try { await api("/api/teacher/courses", { method: "POST", body: JSON.stringify({ title }) }); setTitle(""); setTick((value) => value + 1) }
-        catch (reason) { setError(reason instanceof Error ? reason.message : "") }
-      }}>
-        <Field label={lang === "ar" ? "عنوان الدورة" : "Course title"} value={title} onChange={(e) => setTitle(e.target.value)} />
-        <button className="btn" type="submit">{lang === "ar" ? "إنشاء" : "Create"}</button>
-      </form>
-      {error ? <Callout tone="bad">{error}</Callout> : null}
-      <CourseList tick={tick} />
-    </div>
+    <Resource
+      path="/api/teacher/courses"
+      title={lang === "ar" ? "الدورات" : "Courses"}
+      image="coverFileId"
+      rowHref={(row) => `/courses/${row.id}`}
+      columns={[
+        { key: "title", label: lang === "ar" ? "العنوان" : "Title" },
+        { key: "description", label: lang === "ar" ? "الوصف" : "Description" },
+      ]}
+      fields={[
+        { name: "title", label: lang === "ar" ? "عنوان الدورة" : "Course title", required: true },
+        { name: "description", label: lang === "ar" ? "الوصف" : "Description", type: "textarea" },
+      ]}
+    />
   )
 }
 
@@ -174,6 +181,7 @@ function CourseDesk() {
   const [count, setCount] = useState(1)
   const [message, setMessage] = useState("")
   const [askFormat, setAskFormat] = useState(false)
+  const [askChapter, setAskChapter] = useState(false)
   async function load() { setChapters(await api(`/api/teacher/courses/${id}/chapters`)) }
   useEffect(() => { void load() }, [id])
   return (
@@ -181,11 +189,11 @@ function CourseDesk() {
       <Mast title={lang === "ar" ? "محتوى الدورة" : "Course studio"} lede={lang === "ar" ? "الفصول والدروس في الاستوديو، وتوزيع الأكواد في الجانب." : "Chapters and lessons stay in the studio. Codes sit beside them."} />
       <div className="split">
         <div className="stack">
-          <form className="composer inline" onSubmit={async (event) => { event.preventDefault(); await api("/api/teacher/chapters", { method: "POST", body: JSON.stringify({ courseId: id, title }) }); setTitle(""); await load() }}>
-            <Field label={lang === "ar" ? "فصل" : "Chapter"} value={title} onChange={(e) => setTitle(e.target.value)} />
-            <button className="btn" type="submit">{lang === "ar" ? "إضافة فصل" : "Add chapter"}</button>
-          </form>
+          <PageHeader title={lang === "ar" ? "الفصول" : "Chapters"} count={chapters.length} onAdd={() => setAskChapter(true)} addLabel={lang === "ar" ? "إضافة فصل" : "Add chapter"} />
           {chapters.map((chapter) => <Chapter key={chapter.id} chapter={chapter} />)}
+          <FormModal open={askChapter} title={lang === "ar" ? "فصل جديد" : "New chapter"} onClose={() => setAskChapter(false)} onSubmit={async () => { await api("/api/teacher/chapters", { method: "POST", body: JSON.stringify({ courseId: id, title }) }); setTitle(""); setAskChapter(false); await load() }}>
+            <Field label={lang === "ar" ? "فصل" : "Chapter"} value={title} onChange={(e) => setTitle(e.target.value)} required />
+          </FormModal>
         </div>
         <aside className="sheet stack">
           <h2>{lang === "ar" ? "الأكواد" : "Codes"}</h2>
@@ -228,39 +236,42 @@ function Chapter({ chapter }: { chapter: Row }) {
   const [video, setVideo] = useState("")
   async function load() { setLessons(await api(`/api/teacher/chapters/${chapter.id}/lessons`)) }
   useEffect(() => { void load() }, [chapter.id])
+  const [open, setOpen] = useState(false)
+  const [free, setFree] = useState(false)
+  const toast = useToast()
   return (
-    <section className="sheet">
-      <h2>{chapter.title}</h2>
-      {lessons.map((lesson, index) => (
+    <section className="sheet stack">
+      <PageHeader title={chapter.title} count={lessons.length} onAdd={() => setOpen(true)} addLabel={lang === "ar" ? "إضافة درس" : "Add lesson"} />
+      {lessons.length === 0 ? <div className="empty"><i /><strong>{lang === "ar" ? "لا دروس بعد" : "No lessons yet"}</strong></div> : lessons.map((lesson, index) => (
         <div key={lesson.id} className="lesson-row">
-          <span>{lesson.title}{lesson.videoReference ? <small> · {lesson.videoReference}</small> : null}</span>
+          <span>{lesson.title}{lesson.videoReference ? <small> · {lesson.videoReference}</small> : null}{String(lesson.isFree) === "true" ? <span className="pill ok">{lang === "ar" ? "مجاني" : "Free"}</span> : null}</span>
           <button className="ghost" type="button" disabled={index === 0} aria-label={lang === "ar" ? "تقديم" : "Move up"} onClick={async () => { const ids = lessons.map((item) => item.id); [ids[index - 1], ids[index]] = [ids[index], ids[index - 1]]; await api(`/api/teacher/chapters/${chapter.id}/lessons/order`, { method: "PUT", body: JSON.stringify({ lessonIds: ids }) }); await load() }}>↑</button>
         </div>
       ))}
-      <form className="form-grid" style={{ marginTop: 12 }} onSubmit={async (event) => { event.preventDefault(); await api("/api/teacher/lessons", { method: "POST", body: JSON.stringify({ chapterId: chapter.id, title, videoReference: video || null }) }); setTitle(""); setVideo(""); await load() }}>
-        <Field label={lang === "ar" ? "درس" : "Lesson"} value={title} onChange={(e) => setTitle(e.target.value)} />
-        <Field label={lang === "ar" ? "مرجع الفيديو" : "Video reference"} value={video} onChange={(e) => setVideo(e.target.value)} />
-        <button className="btn" type="submit">{lang === "ar" ? "إضافة" : "Add"}</button>
-      </form>
+      <FormModal open={open} title={lang === "ar" ? "درس جديد" : "New lesson"} onClose={() => setOpen(false)} onSubmit={async () => {
+        await api("/api/teacher/lessons", { method: "POST", body: JSON.stringify({ chapterId: chapter.id, title, videoReference: video || null, isFree: free }) })
+        setTitle(""); setVideo(""); setFree(false); setOpen(false); toast.push(lang === "ar" ? "تمت إضافة الدرس" : "Lesson added"); await load()
+      }}>
+        <Field label={lang === "ar" ? "درس" : "Lesson"} value={title} onChange={(e) => setTitle(e.target.value)} required />
+        <Field label={lang === "ar" ? "رابط يوتيوب أو مرجع الفيديو" : "YouTube link or video reference"} value={video} onChange={(e) => setVideo(e.target.value)} />
+        <label className="field"><span>{lang === "ar" ? "درس مجاني" : "Free lesson"}</span><input type="checkbox" checked={free} onChange={(e) => setFree(e.target.checked)} /></label>
+      </FormModal>
     </section>
   )
 }
 
 function Summaries() {
   const { lang } = useI18n()
-  const [title, setTitle] = useState("")
-  const [body, setBody] = useState("")
-  const [tick, setTick] = useState(0)
   return (
-    <div className="page">
-      <Mast title={lang === "ar" ? "الملخصات" : "Summaries"} />
-      <form className="sheet stack" onSubmit={async (event) => { event.preventDefault(); await api("/api/teacher/summaries", { method: "POST", body: JSON.stringify({ title, body }) }); setTitle(""); setBody(""); setTick((value) => value + 1) }}>
-        <Field label={lang === "ar" ? "العنوان" : "Title"} value={title} onChange={(e) => setTitle(e.target.value)} />
-        <Area label={lang === "ar" ? "النص" : "Body"} value={body} onChange={(e) => setBody(e.target.value)} />
-        <button className="btn" type="submit">{lang === "ar" ? "حفظ الملخص" : "Save summary"}</button>
-      </form>
-      <Resource key={tick} path="/api/teacher/summaries" title={lang === "ar" ? "المحفوظ" : "Saved"} columns={[{ key: "title", label: lang === "ar" ? "العنوان" : "Title" }]} />
-    </div>
+    <Resource
+      path="/api/teacher/summaries"
+      title={lang === "ar" ? "الملخصات" : "Summaries"}
+      columns={[{ key: "title", label: lang === "ar" ? "العنوان" : "Title" }]}
+      fields={[
+        { name: "title", label: lang === "ar" ? "العنوان" : "Title", required: true },
+        { name: "body", label: lang === "ar" ? "النص" : "Body", type: "textarea", required: true },
+      ]}
+    />
   )
 }
 
@@ -294,21 +305,39 @@ function Exams() {
   if (courseId) query.set("courseId", courseId)
   if (chapterId) query.set("chapterId", chapterId)
   if (lessonId) query.set("lessonId", lessonId)
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState("")
+  const toast = useToast()
   return (
     <div className="page">
-      <Mast title={lang === "ar" ? "الاختبارات" : "Exams"} />
-      <form className="sheet form-grid" onSubmit={async (event) => {
-        event.preventDefault()
-        await api("/api/teacher/exams", { method: "POST", body: JSON.stringify({ title, mark, endDate: new Date(endDate).toISOString(), courseId: courseId || null, chapterId: chapterId || null, lessonId: lessonId || null, groupIds }) })
-        setRevision((value) => value + 1)
+      <Resource
+        key={revision}
+        path={`/api/teacher/exams${query.toString() ? `?${query}` : ""}`}
+        title={lang === "ar" ? "الاختبارات" : "Exams"}
+        rowHref={(row) => `/exams/${row.id}`}
+        onAdd={() => { setError(""); setOpen(true) }}
+        columns={[
+          { key: "title", label: lang === "ar" ? "العنوان" : "Title" },
+          { key: "status", label: lang === "ar" ? "الحالة" : "Status" },
+          { key: "mark", label: lang === "ar" ? "الدرجة" : "Mark" },
+        ]}
+      />
+      <FormModal open={open} title={lang === "ar" ? "اختبار جديد" : "New exam"} onClose={() => setOpen(false)} busy={busy} error={error} submitLabel={lang === "ar" ? "حفظ الاختبار" : "Save exam"} onSubmit={async () => {
+        setBusy(true)
+        try {
+          await api("/api/teacher/exams", { method: "POST", body: JSON.stringify({ title, mark, endDate: new Date(endDate).toISOString(), courseId: courseId || null, chapterId: chapterId || null, lessonId: lessonId || null, groupIds }) })
+          setOpen(false); setRevision((value) => value + 1); toast.push(lang === "ar" ? "تم حفظ الاختبار" : "Exam saved")
+        } catch (reason) { setError(reason instanceof Error ? reason.message : "") }
+        finally { setBusy(false) }
       }}>
-        <Field label={lang === "ar" ? "عنوان الاختبار" : "Exam title"} value={title} onChange={(e) => setTitle(e.target.value)} />
+        <Field label={lang === "ar" ? "عنوان الاختبار" : "Exam title"} value={title} onChange={(e) => setTitle(e.target.value)} required />
         <Field type="number" label={lang === "ar" ? "الدرجة، حد 100" : "Mark, max 100"} value={mark} onChange={(e) => setMark(Number(e.target.value))} />
         <Field type="datetime-local" label={lang === "ar" ? "تاريخ الانتهاء" : "End"} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         <SelectField label={lang === "ar" ? "الدورة" : "Course"} value={courseId} onChange={(value) => { setCourseId(value); setChapterId(""); setLessonId("") }} options={[{ value: "", label: "—" }, ...courses.map((row) => ({ value: row.id, label: row.title }))]} />
         <SelectField label={lang === "ar" ? "الفصل" : "Chapter"} value={chapterId} onChange={(value) => { setChapterId(value); setLessonId("") }} options={[{ value: "", label: "—" }, ...chapters.map((row) => ({ value: row.id, label: row.title }))]} />
         <SelectField label={lang === "ar" ? "الدرس" : "Lesson"} value={lessonId} onChange={setLessonId} options={[{ value: "", label: "—" }, ...lessons.map((row) => ({ value: row.id, label: row.title }))]} />
-        <div className="span-2">
+        <div>
           <p className="lede">{lang === "ar" ? "المجموعات" : "Groups"}</p>
           <div className="perm-grid">
             {groups.map((row) => {
@@ -322,9 +351,7 @@ function Exams() {
             })}
           </div>
         </div>
-        <button className="btn" type="submit">{lang === "ar" ? "حفظ الاختبار" : "Save exam"}</button>
-      </form>
-      <ExamLinks query={`${query.toString()}&revision=${revision}`} />
+      </FormModal>
     </div>
   )
 }
@@ -375,80 +402,80 @@ function ExamDesk() {
 
 function Groups() {
   const { lang } = useI18n()
-  const [name, setName] = useState("")
-  const [tick, setTick] = useState(0)
-  return (
-    <div className="page">
-      <Mast title={lang === "ar" ? "المجموعات" : "Groups"} />
-      <form className="composer inline" onSubmit={async (event) => { event.preventDefault(); await api("/api/teacher/groups", { method: "POST", body: JSON.stringify({ name }) }); setName(""); setTick((value) => value + 1) }}>
-        <Field label={lang === "ar" ? "اسم المجموعة" : "Group"} value={name} onChange={(e) => setName(e.target.value)} />
-        <button className="btn" type="submit">{lang === "ar" ? "إنشاء" : "Create"}</button>
-      </form>
-      <Resource key={tick} path="/api/teacher/groups" title={lang === "ar" ? "المجموعات" : "Groups"} columns={[{ key: "name", label: lang === "ar" ? "الاسم" : "Name" }]} />
-    </div>
-  )
+  return <Resource path="/api/teacher/groups" title={lang === "ar" ? "المجموعات" : "Groups"} columns={[{ key: "name", label: lang === "ar" ? "الاسم" : "Name" }]} fields={[{ name: "name", label: lang === "ar" ? "اسم المجموعة" : "Group", required: true }]} />
 }
 
 function Staff() {
   const { lang } = useI18n()
+  const toast = useToast()
+  const [open, setOpen] = useState(false)
   const [form, setForm] = useState({ firstName: "", lastName: "", phone: "", password: "", style: "Assistant", groupName: "" })
   const [selected, setSelected] = useState<string[]>([])
-  const [message, setMessage] = useState("")
   const [tick, setTick] = useState(0)
+  const [error, setError] = useState("")
+  const [busy, setBusy] = useState(false)
   return (
-    <div className="page">
-      <Mast title={lang === "ar" ? "المساعدون والموظفون" : "Assistants and staff"} />
-      <form className="sheet stack" onSubmit={async (event) => {
-        event.preventDefault()
-        let groupId: string | undefined
-        if (form.style === "Staff") {
-          const group = await api<{ id: string }>("/api/teacher/permission-groups", { method: "POST", body: JSON.stringify({ name: form.groupName || form.firstName, permissions: selected }) })
-          groupId = group.id
-        }
-        await api("/api/teacher/employees", { method: "POST", body: JSON.stringify({ ...form, style: form.style, permissions: form.style === "Assistant" ? selected : [], groupId }) })
-        setMessage(lang === "ar" ? "تم إنشاء الحساب والصلاحيات على الخادم" : "Account and permissions were saved on the server")
-        setTick((value) => value + 1)
+    <div className="stack">
+      <Resource key={tick} path="/api/teacher/employees" title={lang === "ar" ? "المساعدون والموظفون" : "Assistants and staff"} onAdd={() => { setError(""); setOpen(true) }} columns={[{ key: "firstName", label: lang === "ar" ? "الاسم" : "Name" }, { key: "phone", label: lang === "ar" ? "الهاتف" : "Phone" }, { key: "employeeStyle", label: lang === "ar" ? "النوع" : "Style" }]} />
+      <FormModal open={open} title={lang === "ar" ? "إضافة موظف" : "Add staff"} onClose={() => setOpen(false)} busy={busy} error={error} onSubmit={async () => {
+        setBusy(true)
+        try {
+          let groupId: string | undefined
+          if (form.style === "Staff") {
+            const group = await api<{ id: string }>("/api/teacher/permission-groups", { method: "POST", body: JSON.stringify({ name: form.groupName || form.firstName, permissions: selected }) })
+            groupId = group.id
+          }
+          await api("/api/teacher/employees", { method: "POST", body: JSON.stringify({ ...form, style: form.style, permissions: form.style === "Assistant" ? selected : [], groupId }) })
+          setOpen(false)
+          setForm({ firstName: "", lastName: "", phone: "", password: "", style: "Assistant", groupName: "" })
+          setSelected([])
+          setTick((value) => value + 1)
+          toast.push(lang === "ar" ? "تم إنشاء الحساب" : "Account created")
+        } catch (reason) { setError(reason instanceof Error ? reason.message : "") }
+        finally { setBusy(false) }
       }}>
         <div className="form-grid">
-          <Field label={lang === "ar" ? "الاسم" : "First"} value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
+          <Field label={lang === "ar" ? "الاسم" : "First"} value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} required />
           <Field label={lang === "ar" ? "اللقب" : "Last"} value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
-          <Field label={lang === "ar" ? "الهاتف" : "Phone"} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-          <Field type="password" label={lang === "ar" ? "كلمة المرور" : "Password"} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} autoComplete="new-password" />
+          <Field label={lang === "ar" ? "الهاتف" : "Phone"} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} required />
+          <Field type="password" label={lang === "ar" ? "كلمة المرور" : "Password"} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} autoComplete="new-password" required />
           <SelectField label={lang === "ar" ? "النوع" : "Style"} value={form.style} onChange={(value) => setForm({ ...form, style: value })} options={[{ value: "Assistant", label: lang === "ar" ? "مساعد" : "Assistant" }, { value: "Staff", label: lang === "ar" ? "موظف" : "Employee" }]} />
           {form.style === "Staff" ? <Field label={lang === "ar" ? "اسم مجموعة الصلاحيات" : "Permission group"} value={form.groupName} onChange={(e) => setForm({ ...form, groupName: e.target.value })} /> : null}
         </div>
         <PermissionPicker slugs={teacherPermissions} selected={selected} onChange={setSelected} lang={lang} />
-        <button className="btn" type="submit">{lang === "ar" ? "حفظ" : "Save"}</button>
-        {message ? <Callout tone="ok">{message}</Callout> : null}
-      </form>
-      <Resource key={tick} path="/api/teacher/employees" title={lang === "ar" ? "الموظفون" : "Employees"} columns={[{ key: "firstName", label: lang === "ar" ? "الاسم" : "Name" }, { key: "phone", label: lang === "ar" ? "الهاتف" : "Phone" }, { key: "employeeStyle", label: lang === "ar" ? "النوع" : "Style" }]} />
+      </FormModal>
     </div>
   )
 }
 
 function Classrooms() {
   const { lang } = useI18n()
-  const [title, setTitle] = useState("")
+  const toast = useToast()
+  const [open, setOpen] = useState(false)
   const [code, setCode] = useState("")
-  const [message, setMessage] = useState("")
-  const [tick, setTick] = useState(0)
+  const [error, setError] = useState("")
+  const [busy, setBusy] = useState(false)
   return (
-    <div className="page">
-      <Mast title={lang === "ar" ? "القاعات" : "Classrooms"} />
-      <div className="split">
-        <form className="sheet stack" onSubmit={async (event) => { event.preventDefault(); await api("/api/teacher/classrooms", { method: "POST", body: JSON.stringify({ title }) }); setTitle(""); setTick((value) => value + 1) }}>
-          <h2>{lang === "ar" ? "قاعة جديدة" : "New classroom"}</h2>
-          <Field label={lang === "ar" ? "العنوان" : "Title"} value={title} onChange={(e) => setTitle(e.target.value)} />
-          <button className="btn" type="submit">{lang === "ar" ? "فتح" : "Open"}</button>
-        </form>
-        <form className="sheet stack" onSubmit={async (event) => { event.preventDefault(); await api("/api/teacher/hour-packages/redeem", { method: "POST", body: JSON.stringify({ code }) }); setMessage(lang === "ar" ? "تم تفعيل باقة الساعات" : "Hour package activated") }}>
-          <h2>{lang === "ar" ? "باقة الساعات" : "Hour package"}</h2>
-          <Field label={lang === "ar" ? "كود باقة الساعات" : "Hour package code"} value={code} onChange={(e) => setCode(e.target.value)} />
-          <button className="btn" type="submit">{lang === "ar" ? "تفعيل" : "Redeem"}</button>
-          {message ? <Callout tone="ok">{message}</Callout> : null}
-        </form>
+    <div className="stack">
+      <Resource
+        path="/api/teacher/classrooms"
+        title={lang === "ar" ? "القاعات" : "Classrooms"}
+        columns={[{ key: "title", label: lang === "ar" ? "العنوان" : "Title" }, { key: "status", label: lang === "ar" ? "الحالة" : "Status" }]}
+        fields={[{ name: "title", label: lang === "ar" ? "العنوان" : "Title", required: true }]}
+      />
+      <div className="crud-tools">
+        <button className="ghost" type="button" onClick={() => { setError(""); setOpen(true) }}>{lang === "ar" ? "تفعيل باقة ساعات" : "Redeem hour package"}</button>
       </div>
-      <Resource key={tick} path="/api/teacher/classrooms" title={lang === "ar" ? "القاعات" : "Classrooms"} columns={[{ key: "title", label: lang === "ar" ? "العنوان" : "Title" }, { key: "status", label: lang === "ar" ? "الحالة" : "Status" }]} />
+      <FormModal open={open} title={lang === "ar" ? "باقة الساعات" : "Hour package"} onClose={() => setOpen(false)} busy={busy} error={error} submitLabel={lang === "ar" ? "تفعيل" : "Redeem"} onSubmit={async () => {
+        setBusy(true)
+        try {
+          await api("/api/teacher/hour-packages/redeem", { method: "POST", body: JSON.stringify({ code }) })
+          setOpen(false); setCode(""); toast.push(lang === "ar" ? "تم تفعيل باقة الساعات" : "Hour package activated")
+        } catch (reason) { setError(reason instanceof Error ? reason.message : "") }
+        finally { setBusy(false) }
+      }}>
+        <Field label={lang === "ar" ? "كود باقة الساعات" : "Hour package code"} value={code} onChange={(e) => setCode(e.target.value)} />
+      </FormModal>
     </div>
   )
 }
@@ -467,29 +494,29 @@ function Sessions() {
   useEffect(() => { void load() }, [])
   useEffect(() => { api<Row[] | { items: Row[] }>("/api/teacher/classrooms").then((data) => setClassrooms(Array.isArray(data) ? data : data.items ?? [])).catch(() => setClassrooms([])) }, [])
   const roomTitle = (id: string) => classrooms.find((row) => row.id === id)?.title ?? ""
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const toast = useToast()
   return (
     <div className="page">
-      <Mast title={ar ? "الجلسات" : "Sessions"} lede={ar ? "الجدولة تخصم المدة كاملة، والإلغاء لا يعيد الرصيد. غرفة الانتظار تفتح قبل البداية بعشر دقائق." : "Scheduling deducts the full duration. Cancelling does not refund it. The waiting room opens ten minutes early."} />
-      <form className="sheet form-grid" onSubmit={async (event) => {
-        event.preventDefault()
-        setError("")
+      <PageHeader title={ar ? "الجلسات" : "Sessions"} count={rows.length} onAdd={() => { setError(""); setOpen(true) }} />
+      <p className="lede">{ar ? "الجدولة تخصم المدة كاملة، والإلغاء لا يعيد الرصيد. غرفة الانتظار تفتح قبل البداية بعشر دقائق." : "Scheduling deducts the full duration. Cancelling does not refund it. The waiting room opens ten minutes early."}</p>
+      <section className="directory-card crud-card">
+        {rows.length === 0 ? <div className="empty"><i /><strong>{ar ? "ماكو جلسات مجدولة." : "No sessions scheduled."}</strong><button className="btn" type="button" onClick={() => setOpen(true)}>{ar ? "إضافة" : "Add"}</button></div> : rows.map((row) => <SessionLine key={row.id} row={row as unknown as SessionRow} room={roomTitle(row.classroomId)} studio={`/meetings/${row.id}`} summary={`/sessions/${row.id}/summary`} onCancel={async () => { await api(`/api/teacher/sessions/${row.id}/cancel`, { method: "POST" }); await load() }} />)}
+      </section>
+      <FormModal open={open} title={ar ? "جدولة حصة" : "Schedule a session"} onClose={() => setOpen(false)} busy={busy} error={error} submitLabel={ar ? "جدولة وخصم المدة كاملة" : "Schedule and deduct the full duration"} onSubmit={async () => {
+        setBusy(true)
         try {
           await api("/api/teacher/sessions", { method: "POST", body: JSON.stringify({ classroomId, startsAt: new Date(startsAt).toISOString(), durationMinutes: duration, title: title.trim() || null }) })
-          setTitle("")
-          await load()
+          setTitle(""); setOpen(false); toast.push(ar ? "تم جدولة الحصة" : "Session scheduled"); await load()
         } catch (reason) { setError(reason instanceof Error ? reason.message : "") }
+        finally { setBusy(false) }
       }}>
         <Field className="span-2" label={ar ? "عنوان الحصة (اختياري)" : "Session title (optional)"} value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} placeholder={ar ? "مثلاً: قوانين نيوتن" : "e.g. Newton's laws"} />
         <SelectField label={ar ? "القاعة" : "Classroom"} value={classroomId} onChange={setClassroomId} options={[{ value: "", label: "—" }, ...classrooms.map((row) => ({ value: row.id, label: row.title || row.id }))]} />
         <Field type="datetime-local" label={ar ? "البداية" : "Starts"} value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
         <SelectField label={ar ? "المدة" : "Duration"} value={String(duration)} onChange={(value) => setDuration(Number(value))} options={[30, 45, 60, 90, 120].map((minutes) => ({ value: String(minutes), label: `${minutes} ${ar ? "دقيقة" : "min"}` }))} />
-        <button className="btn" type="submit">{ar ? "جدولة وخصم المدة كاملة" : "Schedule and deduct the full duration"}</button>
-        {error ? <Callout tone="bad">{error}</Callout> : null}
-      </form>
-      <section className="sheet">
-        {rows.length === 0 ? <p className="lede">{ar ? "ماكو جلسات مجدولة." : "No sessions scheduled."}</p> : null}
-        {rows.map((row) => <SessionLine key={row.id} row={row as unknown as SessionRow} room={roomTitle(row.classroomId)} studio={`/meetings/${row.id}`} summary={`/sessions/${row.id}/summary`} onCancel={async () => { await api(`/api/teacher/sessions/${row.id}/cancel`, { method: "POST" }); await load() }} />)}
-      </section>
+      </FormModal>
     </div>
   )
 }
