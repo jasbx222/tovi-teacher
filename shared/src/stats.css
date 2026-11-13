@@ -1,0 +1,41 @@
+/* Home stat grid: four even cards per row on desktop, two on tablet and phone, one on very narrow screens. */
+.tv-statgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.tv-statcard {
+  --tone: #6A4CFF; --tone-soft: #EEEAFF;
+  display: grid; grid-template-rows: auto auto auto 1fr; align-content: start; gap: 6px;
+  min-height: 168px; padding: 20px; border-radius: 22px; border: 0;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 2px 4px rgba(35, 20, 110, 0.05), 0 12px 28px -6px rgba(35, 20, 110, 0.14);
+}
+.tv-statcard.tone-sun { --tone: #C98A00; --tone-soft: #FFF3D1; }
+.tv-statcard.tone-coral { --tone: #E8513D; --tone-soft: #FFE6E1; }
+.tv-statcard.tone-mint { --tone: #0F9A78; --tone-soft: #DDF5EE; }
+.tv-statcard.tone-sky { --tone: #2F7DF6; --tone-soft: #E3EEFF; }
+.tv-statcard-icon {
+  position: relative; display: grid; place-items: center; width: 48px; height: 48px; margin-bottom: 8px;
+  border-radius: 50%; background: var(--tone-soft); color: var(--tone);
+}
+.tv-statcard-icon svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.tv-statcard-live { position: absolute; top: 2px; inset-inline-end: 2px; width: 11px; height: 11px; border-radius: 50%; background: #FF6B57; box-shadow: 0 0 0 3px #fff; }
+.tv-statcard-live::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid #FF6B57; animation: vv-pulse 1.6s ease-out infinite; }
+.tv-statcard-value {
+  display: block; font-family: var(--display, inherit); font-size: clamp(30px, 2.6vw, 38px); font-weight: 800;
+  line-height: 1.05; letter-spacing: -0.03em; color: #17142B; font-variant-numeric: tabular-nums;
+}
+.tv-statcard-value .tv-count { font-size: inherit; color: inherit; }
+.tv-statcard-label { display: block; font-size: 15px; font-weight: 650; color: #3A3652; }
+.tv-statcard-sub {
+  align-self: end; justify-self: start; margin-top: 6px; padding: 4px 10px; border-radius: 999px;
+  background: var(--tone-soft); color: var(--tone); font-size: 12.5px; font-weight: 650;
+}
+.tv-statcard:hover .tv-statcard-icon { transform: translateZ(30px) scale(1.06); }
+.tv-statcard-icon { transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1); }
+@media (max-width: 1100px) { .tv-statgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) {
+  .tv-statgrid { gap: 12px; }
+  .tv-statcard { min-height: 148px; padding: 16px; }
+  .tv-statcard-icon { width: 42px; height: 42px; }
+  .tv-statcard-value { font-size: 28px; }
+}
+@media (max-width: 360px) { .tv-statgrid { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .tv-statcard-live::after { animation: none; } }
