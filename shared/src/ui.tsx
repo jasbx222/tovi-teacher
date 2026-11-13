@@ -41,12 +41,12 @@ export function MetricBand({ items }: { items: { label: string; value: string | 
 }
 
 const palettes = [
-  ["#3d45c6", "#8b93f0", "#eef0ff"],
-  ["#243298", "#7eb6d4", "#e7f3fa"],
-  ["#1e3a5f", "#9aa8d4", "#eef1f8"],
-  ["#c56a32", "#e7b089", "#fdf1e7"],
-  ["#0f7a4a", "#8fb89a", "#e8f6ee"],
-  ["#5a3d8a", "#c4b0e8", "#f3eef8"],
+  ["#6A4CFF", "#B7A8FF", "#EEEAFF"],
+  ["#2F7DF6", "#9CC2FF", "#E5F0FF"],
+  ["#F06A4F", "#FFB3A6", "#FFE9E5"],
+  ["#0F9A78", "#8FD9C4", "#E2F6EF"],
+  ["#B5468F", "#E6A8D2", "#FAE8F4"],
+  ["#C98A00", "#FFD978", "#FFF4D6"],
 ]
 
 export function Cover({ seed }: { seed: string }) {

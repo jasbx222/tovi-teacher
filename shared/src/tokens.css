@@ -1,0 +1,179 @@
+/*
+  Tovi Planet design tokens, shared by the admin, teacher and institute dashboards.
+  The student app mirrors the same values in lib/tokens.dart.
+  This file loads after tovi.css and maps the existing variables onto the tokens,
+  then restyles the shared surfaces: solid cards with soft shadows instead of outlines.
+*/
+:root {
+  --tv-violet: #6a4cff;
+  --tv-violet-deep: #4b32d9;
+  --tv-violet-soft: #eeeaff;
+  --tv-sun: #ffc23d;
+  --tv-sun-soft: #fff4d6;
+  --tv-coral: #ff6b57;
+  --tv-coral-soft: #ffe9e5;
+  --tv-mint: #14a37f;
+  --tv-mint-soft: #e2f6ef;
+  --tv-sky: #3d8bff;
+  --tv-sky-soft: #e5f0ff;
+  --tv-ink: #17142b;
+  --tv-ink-soft: #3b3754;
+  --tv-muted: #6e6a85;
+  --tv-faint: #a9a5bd;
+  --tv-page: #f6f5fb;
+  --tv-surface: #ffffff;
+  --tv-sunken: #f0eef7;
+  --tv-night: #14111f;
+  --tv-night-raised: #221e33;
+  --tv-danger: #d9434f;
+  --tv-radius-sm: 12px;
+  --tv-radius-md: 18px;
+  --tv-radius-lg: 24px;
+  --tv-raised: 0 1px 2px rgba(23, 20, 43, 0.06), 0 6px 16px rgba(23, 20, 43, 0.05);
+  --tv-floating: 0 12px 28px rgba(23, 20, 43, 0.08);
+  --tv-fast: 160ms;
+  --tv-calm: 240ms;
+
+  --canvas: var(--tv-page);
+  --surface: var(--tv-surface);
+  --ink: var(--tv-ink);
+  --muted: var(--tv-muted);
+  --faint: var(--tv-faint);
+  --line: #ebe8f4;
+  --line-strong: #e1ddef;
+  --nav: var(--tv-surface);
+  --nav-raised: var(--tv-violet-soft);
+  --nav-text: var(--tv-ink-soft);
+  --nav-muted: var(--tv-muted);
+  --signal: var(--tv-violet);
+  --signal-strong: var(--tv-violet-deep);
+  --signal-soft: var(--tv-violet-soft);
+  --signal-line: var(--tv-violet);
+  --live: var(--tv-coral);
+  --ok: var(--tv-mint);
+  --ok-soft: var(--tv-mint-soft);
+  --wait: #9a6a00;
+  --wait-soft: var(--tv-sun-soft);
+  --bad: var(--tv-danger);
+  --bad-soft: #fde8ea;
+  --info: #2563c9;
+  --info-soft: var(--tv-sky-soft);
+  --shadow: var(--tv-raised);
+  --radius: var(--tv-radius-md);
+  --side: 248px;
+  --display: "IBM Plex Sans Arabic", "Segoe UI", sans-serif;
+}
+
+body, .tovi-app { background: var(--tv-page); }
+.tovi-app { padding: 0; gap: 0; }
+
+/* Navigation: light surface, active item as a filled pill. */
+.tovi-side {
+  top: 0; height: 100vh; border: 0; border-radius: 0;
+  background: var(--tv-surface); color: var(--tv-ink-soft);
+  box-shadow: 1px 0 0 rgba(23, 20, 43, 0.04), 8px 0 24px rgba(23, 20, 43, 0.04);
+}
+html[dir="rtl"] .tovi-side { box-shadow: -1px 0 0 rgba(23, 20, 43, 0.04), -8px 0 24px rgba(23, 20, 43, 0.04); }
+.brand { color: var(--tv-ink); }
+.brand span { color: var(--tv-muted); }
+.nav-group { color: var(--tv-faint); }
+.nav-link { color: var(--tv-ink-soft); border-inline-start: 0; border-radius: 12px; min-height: 42px; }
+.nav-link:hover { background: var(--tv-sunken); color: var(--tv-ink); }
+.nav-link.active { background: var(--tv-violet-soft); color: var(--tv-violet); font-weight: 700; }
+.nav-link.active svg { stroke: var(--tv-violet); }
+.side-foot .lang, .side-foot .ghost { color: var(--tv-ink-soft); background: var(--tv-sunken); border: 0; }
+.side-foot .lang:hover, .side-foot .ghost:hover { background: var(--tv-violet-soft); color: var(--tv-violet); }
+.tovi-top { background: rgba(246, 245, 251, 0.92); backdrop-filter: saturate(1.2) blur(8px); }
+
+/* Buttons. */
+.btn { background: var(--tv-violet); color: #fff; }
+.btn:hover { background: var(--tv-violet-deep); }
+.ghost, .lang { background: var(--tv-surface); border: 0; box-shadow: var(--tv-raised); }
+.ghost:hover, .lang:hover { background: var(--tv-sunken); }
+.quiet { color: var(--tv-violet); }
+
+/* Surfaces: solid, soft shadow, no outline. */
+.auth { background: var(--tv-page); }
+.auth-card, .sheet, .panel, .composer, .ledger, .rail, .course-card, .stat, .metric {
+  border: 0; box-shadow: var(--tv-raised);
+}
+.auth-card { border-radius: var(--tv-radius-lg); }
+.ledger-main { background: var(--tv-violet); color: #fff; }
+.ledger-main span, .ledger-main small { color: rgba(255, 255, 255, 0.78); }
+.ledger-side li { border-inline-start: 0; }
+.danger-zone { border-top: 0; padding-top: 4px; }
+
+/* Inputs: filled, focus shown by a soft ring. */
+.field input, .field select, .field textarea, .bare, .search {
+  border: 0; background: var(--tv-sunken); border-radius: var(--tv-radius-sm);
+}
+.field input:focus, .field select:focus, .field textarea:focus, .bare:focus, .search:focus {
+  outline: 0; box-shadow: 0 0 0 3px rgba(106, 76, 255, 0.22); background: var(--tv-surface);
+}
+
+/* Tables: separated by spacing and a faint row tone, not lines. */
+table.data th { border-bottom: 0; color: var(--tv-muted); }
+table.data td { border-bottom: 0; }
+table.data tbody tr:nth-child(even) td { background: #faf9fd; }
+table.data tr:hover td { background: var(--tv-violet-soft); }
+
+/* Planet extras used by the live studio and progress views. */
+.tv-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 700; background: var(--tv-sunken); color: var(--tv-ink-soft); }
+.tv-chip.live { background: var(--tv-coral); color: #fff; }
+.tv-chip.ok { background: var(--tv-mint-soft); color: var(--tv-mint); }
+.tv-chip.wait { background: var(--tv-sun-soft); color: #9a6a00; }
+.tv-chip.violet { background: var(--tv-violet-soft); color: var(--tv-violet); }
+.tv-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; display: inline-block; }
+.tv-hero { border-radius: var(--tv-radius-lg); padding: 20px 22px; background: var(--tv-violet); color: #fff; box-shadow: var(--tv-floating); }
+.tv-hero.coral { background: var(--tv-coral); }
+.tv-hero.ink { background: var(--tv-ink); }
+.tv-hero h2 { margin: 6px 0 2px; font-size: 22px; font-weight: 700; }
+.tv-hero p { margin: 0; color: rgba(255, 255, 255, 0.82); }
+.tv-big { font-size: 40px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.tv-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.tv-stat { background: var(--tv-surface); border-radius: var(--tv-radius-md); box-shadow: var(--tv-raised); padding: 14px 16px; }
+.tv-stat span { display: block; color: var(--tv-muted); font-size: 13px; }
+.tv-stat strong { display: block; margin-top: 4px; font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tv-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.tv-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--tv-radius-sm); background: var(--tv-sunken); }
+.tv-row.answered { background: var(--tv-mint-soft); }
+.tv-row .grow { flex: 1; min-width: 0; }
+.tv-row small { color: var(--tv-muted); }
+.tv-meter { height: 8px; border-radius: 99px; background: var(--tv-sunken); overflow: hidden; }
+.tv-meter i { display: block; height: 100%; border-radius: inherit; background: var(--tv-violet); transition: width var(--tv-calm) ease; }
+.tv-option { position: relative; overflow: hidden; border-radius: var(--tv-radius-sm); background: var(--tv-sunken); padding: 9px 12px; display: flex; justify-content: space-between; gap: 8px; }
+.tv-option i { position: absolute; inset-block: 0; inset-inline-start: 0; background: rgba(106, 76, 255, 0.14); }
+.tv-option span, .tv-option strong { position: relative; }
+.tv-streak { color: var(--tv-coral); font-weight: 700; }
+.tv-xp { color: #b98500; font-weight: 700; }
+.tv-muted { color: var(--tv-muted); }
+
+.course-card:hover { border-color: transparent; box-shadow: var(--tv-floating); }
+.record, .lesson-row, .person { border-top: 0; border-radius: var(--tv-radius-sm); padding-inline: 10px; }
+.record:nth-child(even), .lesson-row:nth-child(even), .person:nth-child(even) { background: #faf9fd; }
+.perm { border: 0; background: var(--tv-sunken); }
+.perm.on { background: var(--tv-violet-soft); }
+.pill { background: var(--tv-sunken); }
+.pill.live { background: var(--tv-coral-soft); color: #c4402e; }
+.empty i { background: var(--tv-violet-soft); }
+.empty i::before, .empty i::after { background: var(--tv-violet); }
+.skel { background: linear-gradient(90deg, #ece9f5, #f7f6fb, #ece9f5); background-size: 200% 100%; }
+.modal-back { background: rgba(20, 17, 31, 0.46); }
+.modal { border-radius: var(--tv-radius-lg) var(--tv-radius-lg) var(--tv-radius-md) var(--tv-radius-md); box-shadow: var(--tv-floating); }
+.stage { background: var(--tv-night); border-radius: var(--tv-radius-lg); }
+.tile { background: var(--tv-night-raised); border-radius: var(--tv-radius-md); }
+.dock { border: 0; background: rgba(34, 30, 51, 0.94); }
+.rail-tabs { border-bottom: 0; gap: 4px; padding: 6px; background: var(--tv-sunken); margin: 8px; border-radius: 99px; }
+@media (max-width: 760px) {
+  table.data tr { border: 0; box-shadow: var(--tv-raised); background: var(--tv-surface); }
+  table.data tbody tr:nth-child(even) td { background: transparent; }
+}
+
+.rail-tabs.studio { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.rail-tabs button { border-radius: 99px; min-height: 36px; font-size: 13px; }
+.rail-tabs button.on { background: var(--tv-surface); color: var(--tv-ink); box-shadow: var(--tv-raised); }
+.rail-tabs .count { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-inline-start: 4px; border-radius: 99px; background: var(--tv-sun); color: var(--tv-ink); font-size: 11px; }
+.floats { position: absolute; inset-inline-end: 18px; bottom: 90px; width: 90px; height: 260px; pointer-events: none; }
+.float { position: absolute; bottom: 0; font-size: 28px; animation: tv-rise 1.6s ease-out forwards; }
+@keyframes tv-rise { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-220px); opacity: 0; } }
+.dock button:disabled { opacity: 0.5; cursor: not-allowed; }

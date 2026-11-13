@@ -37,9 +37,9 @@ function Glyph({ name }: { name: string }) {
 export function Mark() {
   return (
     <svg className="mark-svg" viewBox="0 0 36 36" aria-hidden="true">
-      <rect width="36" height="36" rx="11" fill="#3d45c6" />
-      <path d="M10 12h16M18 12v14" stroke="#f5f7fb" strokeWidth="2.2" strokeLinecap="round" />
-      <circle cx="26" cy="26" r="2.4" fill="#e7b089" />
+      <circle cx="18" cy="18" r="16" fill="#6A4CFF" />
+      <path d="M11.5 13h13M18 13v12" stroke="#FFFFFF" strokeWidth="2.4" strokeLinecap="round" />
+      <circle cx="29" cy="7" r="3.4" fill="#FFC23D" />
     </svg>
   )
 }
