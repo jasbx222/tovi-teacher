@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router"
-import { api, download, setToken, type SessionUser } from "../shared/src/api"
+import { api, download, mediaUrl, setToken, type SessionUser } from "../shared/src/api"
+import { CourseCoverPicker, FreeToggle, ProfilePhotoPicker } from "../shared/src/media"
 import { useI18n } from "../shared/src/i18n"
 import { Meeting } from "../shared/src/meeting"
 import { teacherPermissions } from "../shared/src/permissions"
@@ -107,7 +108,7 @@ function Home() {
       {courses.length > 0 ? (
         <section className="stack">
           <Mast title={lang === "ar" ? "الدورات" : "Courses"} />
-          <CourseCards rows={courses.map((row) => ({ id: row.id, title: row.title }))} href={(id) => `/courses/${id}`} empty="" />
+          <CourseCards rows={courses.map(courseCard)} href={(id) => `/courses/${id}`} empty="" />
         </section>
       ) : null}
     </div>
@@ -166,11 +167,15 @@ function Courses() {
   )
 }
 
+function courseCard(row: Row) {
+  return { id: row.id, title: row.title, image: row.coverFileId ? mediaUrl(`/api/files/${row.coverFileId}`) : "" }
+}
+
 function CourseList({ tick = 0 }: { tick?: number }) {
   const { lang } = useI18n()
   const [rows, setRows] = useState<Row[]>([])
   useEffect(() => { api<{ items: Row[] }>("/api/teacher/courses").then((page) => setRows(page.items ?? [])).catch(() => setRows([])) }, [tick])
-  return <CourseCards rows={rows.map((row) => ({ id: row.id, title: row.title }))} href={(id) => `/courses/${id}`} empty={lang === "ar" ? "لا توجد دورات بعد" : "No courses yet"} />
+  return <CourseCards rows={rows.map(courseCard)} href={(id) => `/courses/${id}`} empty={lang === "ar" ? "لا توجد دورات بعد" : "No courses yet"} />
 }
 
 function CourseDesk() {
@@ -195,7 +200,9 @@ function CourseDesk() {
             <Field label={lang === "ar" ? "فصل" : "Chapter"} value={title} onChange={(e) => setTitle(e.target.value)} required />
           </FormModal>
         </div>
-        <aside className="sheet stack">
+        <aside className="stack">
+          <CourseCoverPicker base="/api/teacher" id={id} />
+          <div className="sheet stack">
           <h2>{lang === "ar" ? "الأكواد" : "Codes"}</h2>
           <form className="stack" onSubmit={async (event) => {
             event.preventDefault()
@@ -210,6 +217,7 @@ function CourseDesk() {
           <div className="danger-zone">
             <p>{lang === "ar" ? "تهيئة الدورة تعيد ضبط التسجيلات." : "Formatting the course resets enrollments."}</p>
             <button className="danger" type="button" onClick={() => setAskFormat(true)}>{lang === "ar" ? "تهيئة الدورة" : "Format course"}</button>
+          </div>
           </div>
         </aside>
       </div>
@@ -244,7 +252,8 @@ function Chapter({ chapter }: { chapter: Row }) {
       <PageHeader title={chapter.title} count={lessons.length} onAdd={() => setOpen(true)} addLabel={lang === "ar" ? "إضافة درس" : "Add lesson"} />
       {lessons.length === 0 ? <div className="empty"><i /><strong>{lang === "ar" ? "لا دروس بعد" : "No lessons yet"}</strong></div> : lessons.map((lesson, index) => (
         <div key={lesson.id} className="lesson-row">
-          <span>{lesson.title}{lesson.videoReference ? <small> · {lesson.videoReference}</small> : null}{String(lesson.isFree) === "true" ? <span className="pill ok">{lang === "ar" ? "مجاني" : "Free"}</span> : null}</span>
+          <span>{lesson.title}{lesson.videoReference ? <small> · {lesson.videoReference}</small> : null}</span>
+          <FreeToggle base="/api/teacher" lesson={{ id: String(lesson.id), isFree: lesson.isFree }} onChange={() => void load()} />
           <button className="ghost" type="button" disabled={index === 0} aria-label={lang === "ar" ? "تقديم" : "Move up"} onClick={async () => { const ids = lessons.map((item) => item.id); [ids[index - 1], ids[index]] = [ids[index], ids[index - 1]]; await api(`/api/teacher/chapters/${chapter.id}/lessons/order`, { method: "PUT", body: JSON.stringify({ lessonIds: ids }) }); await load() }}>↑</button>
         </div>
       ))}
@@ -583,6 +592,7 @@ function Profile() {
   return (
     <form className="sheet stack" style={{ maxWidth: 640 }} onSubmit={async (event) => { event.preventDefault(); await api("/api/teacher/profile", { method: "PUT", body: JSON.stringify(form) }); setMessage(lang === "ar" ? "تم الحفظ" : "Saved") }}>
       <Mast title={lang === "ar" ? "الملف" : "Profile"} />
+      <ProfilePhotoPicker name={`${form.firstName} ${form.lastName}`.trim()} />
       <Field label={lang === "ar" ? "الاسم" : "First"} value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
       <Field label={lang === "ar" ? "اللقب" : "Last"} value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
       <Field label={lang === "ar" ? "العنوان" : "Address"} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
