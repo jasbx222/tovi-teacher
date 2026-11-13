@@ -5,6 +5,8 @@ import { useI18n } from "../shared/src/i18n"
 import { Meeting } from "../shared/src/meeting"
 import { teacherPermissions } from "../shared/src/permissions"
 import { Resource } from "../shared/src/resource"
+import { SessionSummary } from "../shared/src/summary"
+import { SessionLine, type SessionRow } from "../shared/src/sessions"
 import { LoginCard, Shell, type NavItem } from "../shared/src/shell"
 import { Area, Callout, CourseCards, Field, Mast, MetricBand, PermissionPicker, SelectField, StatusText } from "../shared/src/ui"
 
@@ -56,11 +58,12 @@ function Frame() {
         <Route path="/exams" element={<Exams />} />
         <Route path="/exams/:id" element={<ExamDesk />} />
         <Route path="/groups" element={<Groups />} />
-        <Route path="/students" element={<Resource path="/api/teacher/students" title={lang === "ar" ? "الطلاب" : "Students"} columns={[{ key: "firstName", label: lang === "ar" ? "الاسم" : "Name" }, { key: "phone", label: lang === "ar" ? "الهاتف" : "Phone" }]} />} />
+        <Route path="/students" element={<Resource path="/api/teacher/students" title={lang === "ar" ? "الطلاب" : "Students"} columns={[{ key: "firstName", label: lang === "ar" ? "الاسم" : "Name" }, { key: "phone", label: lang === "ar" ? "الهاتف" : "Phone" }, { key: "xp", label: lang === "ar" ? "النقاط" : "XP" }, { key: "streak", label: lang === "ar" ? "السلسلة (يوم)" : "Streak (days)" }]} />} />
         <Route path="/assistants" element={<Staff />} />
         <Route path="/classrooms" element={<Classrooms />} />
         <Route path="/sessions" element={<Sessions />} />
         <Route path="/meetings/:id" element={<MeetingRoom />} />
+        <Route path="/sessions/:id/summary" element={<SummaryRoom />} />
         <Route path="/plans" element={<Plans me={me} />} />
         <Route path="/chat" element={<Chat />} />
         <Route path="/profile" element={<Profile />} />
@@ -419,8 +422,10 @@ function Classrooms() {
 
 function Sessions() {
   const { lang } = useI18n()
+  const ar = lang === "ar"
   const [classrooms, setClassrooms] = useState<Row[]>([])
   const [classroomId, setClassroomId] = useState("")
+  const [title, setTitle] = useState("")
   const [startsAt, setStartsAt] = useState("")
   const [duration, setDuration] = useState(60)
   const [rows, setRows] = useState<Row[]>([])
@@ -428,33 +433,29 @@ function Sessions() {
   async function load() { setRows(await api("/api/teacher/sessions")) }
   useEffect(() => { void load() }, [])
   useEffect(() => { api<Row[] | { items: Row[] }>("/api/teacher/classrooms").then((data) => setClassrooms(Array.isArray(data) ? data : data.items ?? [])).catch(() => setClassrooms([])) }, [])
+  const roomTitle = (id: string) => classrooms.find((row) => row.id === id)?.title ?? ""
   return (
     <div className="page">
-      <Mast title={lang === "ar" ? "الجلسات" : "Sessions"} lede={lang === "ar" ? "الجدولة تخصم المدة كاملة، والإلغاء لا يعيد الرصيد." : "Scheduling deducts the full duration. Cancelling does not refund it."} />
+      <Mast title={ar ? "الجلسات" : "Sessions"} lede={ar ? "الجدولة تخصم المدة كاملة، والإلغاء لا يعيد الرصيد. غرفة الانتظار تفتح قبل البداية بعشر دقائق." : "Scheduling deducts the full duration. Cancelling does not refund it. The waiting room opens ten minutes early."} />
       <form className="sheet form-grid" onSubmit={async (event) => {
         event.preventDefault()
         setError("")
         try {
-          await api("/api/teacher/sessions", { method: "POST", body: JSON.stringify({ classroomId, startsAt: new Date(startsAt).toISOString(), durationMinutes: duration }) })
+          await api("/api/teacher/sessions", { method: "POST", body: JSON.stringify({ classroomId, startsAt: new Date(startsAt).toISOString(), durationMinutes: duration, title: title.trim() || null }) })
+          setTitle("")
           await load()
         } catch (reason) { setError(reason instanceof Error ? reason.message : "") }
       }}>
-        <SelectField label={lang === "ar" ? "القاعة" : "Classroom"} value={classroomId} onChange={setClassroomId} options={[{ value: "", label: "—" }, ...classrooms.map((row) => ({ value: row.id, label: row.title || row.id }))]} />
-        <Field type="datetime-local" label={lang === "ar" ? "البداية" : "Starts"} value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
-        <SelectField label={lang === "ar" ? "المدة" : "Duration"} value={String(duration)} onChange={(value) => setDuration(Number(value))} options={[30, 45, 60, 90, 120].map((minutes) => ({ value: String(minutes), label: String(minutes) }))} />
-        <button className="btn" type="submit">{lang === "ar" ? "جدولة وخصم المدة كاملة" : "Schedule and deduct the full duration"}</button>
+        <Field className="span-2" label={ar ? "عنوان الحصة (اختياري)" : "Session title (optional)"} value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} placeholder={ar ? "مثلاً: قوانين نيوتن" : "e.g. Newton's laws"} />
+        <SelectField label={ar ? "القاعة" : "Classroom"} value={classroomId} onChange={setClassroomId} options={[{ value: "", label: "—" }, ...classrooms.map((row) => ({ value: row.id, label: row.title || row.id }))]} />
+        <Field type="datetime-local" label={ar ? "البداية" : "Starts"} value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
+        <SelectField label={ar ? "المدة" : "Duration"} value={String(duration)} onChange={(value) => setDuration(Number(value))} options={[30, 45, 60, 90, 120].map((minutes) => ({ value: String(minutes), label: `${minutes} ${ar ? "دقيقة" : "min"}` }))} />
+        <button className="btn" type="submit">{ar ? "جدولة وخصم المدة كاملة" : "Schedule and deduct the full duration"}</button>
         {error ? <Callout tone="bad">{error}</Callout> : null}
       </form>
       <section className="sheet">
-        {rows.map((row) => (
-          <article key={row.id} className="record">
-            <span>{row.startsAt} · {row.durationMinutes} · <StatusText value={String(row.status ?? "")} lang={lang} /></span>
-            <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <Link className="btn" to={`/meetings/${row.id}`}>{lang === "ar" ? "دخول الحصة" : "Enter meeting"}</Link>
-              <button className="ghost" type="button" onClick={async () => { await api(`/api/teacher/sessions/${row.id}/cancel`, { method: "POST" }); await load() }}>{lang === "ar" ? "إلغاء بلا استرجاع" : "Cancel, no refund"}</button>
-            </span>
-          </article>
-        ))}
+        {rows.length === 0 ? <p className="lede">{ar ? "ماكو جلسات مجدولة." : "No sessions scheduled."}</p> : null}
+        {rows.map((row) => <SessionLine key={row.id} row={row as unknown as SessionRow} room={roomTitle(row.classroomId)} studio={`/meetings/${row.id}`} summary={`/sessions/${row.id}/summary`} onCancel={async () => { await api(`/api/teacher/sessions/${row.id}/cancel`, { method: "POST" }); await load() }} />)}
       </section>
     </div>
   )
@@ -462,7 +463,13 @@ function Sessions() {
 
 function MeetingRoom() {
   const { id = "" } = useParams()
-  return <Meeting sessionId={id} role="teacher" />
+  const navigate = useNavigate()
+  return <Meeting sessionId={id} role="teacher" onLeave={() => navigate(`/sessions/${id}/summary`)} />
+}
+
+function SummaryRoom() {
+  const { id = "" } = useParams()
+  return <SessionSummary sessionId={id} base="/api/teacher" />
 }
 
 function Plans({ me }: { me: SessionUser }) {
