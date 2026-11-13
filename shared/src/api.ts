@@ -23,6 +23,18 @@ export class ApiError extends Error {
   }
 }
 
+/** Files from the API come back as `/api/files/...`; this makes them loadable. */
+export function mediaUrl(path?: string | null) {
+  if (!path) return ""
+  return /^https?:/.test(path) ? path : `${base}${path}`
+}
+
+export async function upload<T = unknown>(path: string, field: string, file: File): Promise<T> {
+  const body = new FormData()
+  body.append(field, file)
+  return api<T>(path, { method: "POST", body })
+}
+
 export function token() {
   return localStorage.getItem("tovi-token") ?? ""
 }

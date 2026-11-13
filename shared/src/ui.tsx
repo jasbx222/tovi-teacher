@@ -66,13 +66,16 @@ export function Cover({ seed }: { seed: string }) {
   )
 }
 
-export function CourseCards({ rows, href, empty }: { rows: { id: string; title: string; meta?: string }[]; href: (id: string) => string; empty: string }) {
+export function CourseCards({ rows, href, empty }: { rows: { id: string; title: string; meta?: string; image?: string; badge?: string }[]; href: (id: string) => string; empty: string }) {
   if (rows.length === 0) return <div className="panel"><div className="empty"><i /><strong>{empty}</strong></div></div>
   return (
     <div className="course-grid">
       {rows.map((row) => (
         <Link key={row.id} className="course-card" to={href(row.id)}>
-          <Cover seed={row.title || row.id} />
+          <div className={row.image ? "cover-wrap has-image" : "cover-wrap"}>
+            {row.image ? <img className="cover" src={row.image} alt="" loading="lazy" /> : <Cover seed={row.title || row.id} />}
+            {row.badge ? <span className="cover-badge">{row.badge}</span> : null}
+          </div>
           <h3>{row.title}</h3>
           {row.meta ? <p>{row.meta}</p> : null}
         </Link>

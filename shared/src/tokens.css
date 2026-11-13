@@ -177,3 +177,21 @@ table.data tr:hover td { background: var(--tv-violet-soft); }
 .float { position: absolute; bottom: 0; font-size: 28px; animation: tv-rise 1.6s ease-out forwards; }
 @keyframes tv-rise { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-220px); opacity: 0; } }
 .dock button:disabled { opacity: 0.5; cursor: not-allowed; }
+@keyframes tv-rise { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-220px); opacity: 0; } }
+.dock button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Course covers: the uploaded image fills the card top; a soft shade keeps text legible. */
+.cover-wrap { position: relative; border-radius: 12px; overflow: hidden; }
+.cover-wrap img.cover { object-fit: cover; }
+.cover-wrap.has-image::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 55%, rgba(23, 20, 43, 0.28)); pointer-events: none; }
+.cover-badge { position: absolute; inset-block-start: 8px; inset-inline-start: 8px; z-index: 1; padding: 3px 10px; border-radius: 999px; background: var(--tv-sun, #ffc23d); color: #17142b; font-size: 12px; font-weight: 700; }
+.media-pick { display: grid; gap: 10px; }
+.media-pick .preview { width: 100%; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; background: #f0eef7; }
+.media-pick .preview img, .media-pick .preview svg { width: 100%; height: 100%; object-fit: cover; display: block; }
+.media-pick .preview.round { width: 112px; height: 112px; aspect-ratio: auto; border-radius: 50%; box-shadow: 0 0 0 4px #fff, 0 10px 24px rgba(106, 76, 255, 0.22); }
+.media-pick .initials { width: 100%; height: 100%; display: grid; place-items: center; color: #fff; font-size: 36px; font-weight: 700; background: linear-gradient(135deg, #6a4cff, #9b7bff); }
+.media-pick label.btn { cursor: pointer; text-align: center; }
+.media-pick input[type="file"] { display: none; }
+.lesson-row .free-toggle { margin-inline-start: auto; border: 0; border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; background: #f0eef7; color: #6e6a85; transition: background 160ms ease, color 160ms ease; }
+.lesson-row .free-toggle[aria-pressed="true"] { background: #fff4d6; color: #8a5e00; }
+.check-line { display: flex; align-items: center; gap: 8px; font-weight: 600; }
